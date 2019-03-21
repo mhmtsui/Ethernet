@@ -25,24 +25,41 @@
 
 int EthernetClient::connect(const char * host, uint16_t port)
 {
-	DNSClient dns; // Look up the host first
+	DNSClient dns;									// Look up the host first
 	IPAddress remote_addr;
 
 	if (sockindex < MAX_SOCK_NUM) {
-		if (Ethernet.socketStatus(sockindex) != SnSR::CLOSED) {
-			Ethernet.socketDisconnect(sockindex); // TODO: should we call stop()?
+		uint8_t stat = Ethernet.socketStatus(sockindex);
+		if (stat != SnSR::FIN_WAIT &&
+			stat != SnSR::CLOSING &&
+			stat != SnSR::TIME_WAIT &&
+			stat != SnSR::CLOSE_WAIT &&
+			stat != SnSR::LAST_ACK &&
+			stat != SnSR::CLOSED) {
+		//if (Ethernet.socketStatus(sockindex) != SnSR::CLOSED) {
+			Ethernet.socketDisconnect(sockindex);	// TODO: should we call stop()?
 		}
 		sockindex = MAX_SOCK_NUM;
 	}
 	dns.begin(Ethernet.dnsServerIP());
-	if (!dns.getHostByName(host, remote_addr)) return 0; // TODO: use _timeout
+	if (!dns.getHostByName(host, remote_addr)) {
+		//Serial.println("EthernetClient::connect() - DNS lookup failed");	
+		return 0; // TODO: use _timeout
+	}
 	return connect(remote_addr, port);
 }
 
 int EthernetClient::connect(IPAddress ip, uint16_t port)
 {
 	if (sockindex < MAX_SOCK_NUM) {
-		if (Ethernet.socketStatus(sockindex) != SnSR::CLOSED) {
+		uint8_t stat = Ethernet.socketStatus(sockindex);
+		if (stat != SnSR::FIN_WAIT &&
+			stat != SnSR::CLOSING &&
+			stat != SnSR::TIME_WAIT &&
+			stat != SnSR::CLOSE_WAIT &&
+			stat != SnSR::LAST_ACK &&
+			stat != SnSR::CLOSED) {
+		//if (Ethernet.socketStatus(sockindex) != SnSR::CLOSED) {
 			Ethernet.socketDisconnect(sockindex); // TODO: should we call stop()?
 		}
 		sockindex = MAX_SOCK_NUM;
@@ -52,18 +69,27 @@ int EthernetClient::connect(IPAddress ip, uint16_t port)
 #else
 	if (ip == IPAddress(0ul) || ip == IPAddress(0xFFFFFFFFul)) return 0;
 #endif
+		
 	sockindex = Ethernet.socketBegin(SnMR::TCP, 0);
 	if (sockindex >= MAX_SOCK_NUM) return 0;
 	Ethernet.socketConnect(sockindex, rawIPAddress(ip), port);
-	uint32_t start = millis();
+	//uint32_t start = millis();
+
+
+	//// I see socketStatus returning 0x13 in the following loop, which suggests that the command was never sent or seen by the W5500.
+	//// Consider watching for this condition and resending the connect command if socketStatus never returns 0x15 indicating SYN has been sent.
+
 	while (1) {
 		uint8_t stat = Ethernet.socketStatus(sockindex);
+		uint8_t statIR = W5100.readSnIR(sockindex);
 		if (stat == SnSR::ESTABLISHED) return 1;
 		if (stat == SnSR::CLOSE_WAIT) return 1;
-		if (stat == SnSR::CLOSED) return 0;
-		if (millis() - start > _timeout) break;
-		delay(1);
+		if (stat == SnSR::CLOSED || (statIR & SnIR::TIMEOUT) == SnIR::TIMEOUT) {
+			return 0;
+		}
+		delayMicroseconds(5);			// changed from 5ms 20 Mar 2019
 	}
+
 	Ethernet.socketClose(sockindex);
 	sockindex = MAX_SOCK_NUM;
 	return 0;
@@ -137,18 +163,28 @@ void EthernetClient::stop()
 	Ethernet.socketDisconnect(sockindex);
 	unsigned long start = millis();
 
+	// The following block of code is problematic since sockets may take up to 128 sec to close, & remain in FIN_WAIT or TIME_WAIT status in the meantime.
+	// This normal behavior regularly results in a timeout here. Need to find a more elegant way to handle this that doesn't break Arduino compatibility.
+
 	// wait up to a second for the connection to close
 	do {
-		if (Ethernet.socketStatus(sockindex) == SnSR::CLOSED) {
-			sockindex = MAX_SOCK_NUM;
+		uint8_t stat = Ethernet.socketStatus(sockindex);
+		if (stat == SnSR::FIN_WAIT ||
+			stat == SnSR::CLOSING ||
+			stat == SnSR::TIME_WAIT ||
+			stat == SnSR::CLOSE_WAIT ||
+			stat == SnSR::LAST_ACK ||
+			stat == SnSR::CLOSED) {		
+			sockindex = MAX_SOCK_NUM;								
 			return; // exit the loop
 		}
 		delay(1);
-	} while (millis() - start < _timeout);
+	} while (millis() - start < _timeout);		// shouldn't be needed for W5500; socket status is set to SnSR::CLOSED when RTR timeout occurs (Sn_IR = 0x08)
+											    // on the other hand, it should cause no harm unless RTR is set higher than 10,000
 
-	// if it hasn't closed, close it forcefully
-	Ethernet.socketClose(sockindex);
-	sockindex = MAX_SOCK_NUM;
+	// if it hasn't closed, close it forcefully -- this is now done in manageSockets(), which doesn't set sockindex though...
+	//Ethernet.socketClose(sockindex);			// this should probably be removed
+	//sockindex = MAX_SOCK_NUM;					// should this still happen?
 }
 
 uint8_t EthernetClient::connected()
@@ -156,8 +192,14 @@ uint8_t EthernetClient::connected()
 	if (sockindex >= MAX_SOCK_NUM) return 0;
 
 	uint8_t s = Ethernet.socketStatus(sockindex);
+
+	if (s == SnSR::CLOSED) {
+		sockindex = MAX_SOCK_NUM;
+		return false;
+	}
+
 	return !(s == SnSR::LISTEN || s == SnSR::CLOSED || s == SnSR::FIN_WAIT ||
-		(s == SnSR::CLOSE_WAIT && !available()));
+		     ((s == SnSR::CLOSE_WAIT) && !available()));
 }
 
 uint8_t EthernetClient::status()
@@ -210,6 +252,18 @@ uint16_t EthernetClient::remotePort()
 	port = W5100.readSnDPORT(sockindex);
 	SPI.endTransaction();
 	return port;
+}
+
+// return the protocol for which the specified socket is configured
+//
+uint8_t EthernetClient::getSocketProtocol()
+{
+	if (sockindex >= MAX_SOCK_NUM) return 0;
+	uint8_t protocol;
+	SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
+	protocol = W5100.readSnMR(sockindex) & 0x0F;	// protocol is in 4 LSBs of Socket n Mode Register: 0 = closed, 1 = TCP, 2 = UDP, 4 = MACRAW
+	SPI.endTransaction();
+	return protocol;
 }
 
 

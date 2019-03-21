@@ -25,6 +25,11 @@
 
 IPAddress EthernetClass::_dnsServerAddress;
 DhcpClass* EthernetClass::_dhcp = NULL;
+#if MAX_SOCK_NUM == 8
+	unsigned long EthernetClass::lastSocketUse[MAX_SOCK_NUM] = {0,0,0,0,0,0,0,0};			// +rs 03Feb2019 - records last interaction involving each socket to enable detecting sockets unused for longest time period
+#elif MAX_SOCK_NUM == 4
+	unsigned long EthernetClass::lastSocketUse[MAX_SOCK_NUM] = {0,0,0,0};					// +rs 03Feb2019 - records last interaction involving each socket to enable detecting sockets unused for longest time period
+#endif
 
 int EthernetClass::begin(uint8_t *mac, unsigned long timeout, unsigned long responseTimeout)
 {
@@ -109,6 +114,11 @@ EthernetLinkStatus EthernetClass::linkStatus()
 		case LINK_OFF: return LinkOFF;
 		default:       return Unknown;
 	}
+}
+
+uint8_t EthernetClass::linkRawStatus()
+{
+	return W5100.readPHYCFGR_W5500();
 }
 
 EthernetHardwareStatus EthernetClass::hardwareStatus()

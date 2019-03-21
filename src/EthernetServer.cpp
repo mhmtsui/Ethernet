@@ -32,14 +32,32 @@ void EthernetServer::begin()
 		if (Ethernet.socketListen(sockindex)) {
 			server_port[sockindex] = _port;
 		} else {
+			//Serial.print("Failed to start listening on socket ");
+			//Serial.println(sockindex);
 			Ethernet.socketDisconnect(sockindex);
 		}
 	}
 }
 
+bool EthernetServer::begin2()
+{
+	uint8_t sockindex = Ethernet.socketBegin(SnMR::TCP, _port);
+	if (sockindex < MAX_SOCK_NUM) {
+		if (Ethernet.socketListen(sockindex)) {
+			server_port[sockindex] = _port;
+			return true;
+		} else {
+			//Serial.print("Failed to start listening on socket ");
+			//Serial.println(sockindex);
+			Ethernet.socketDisconnect(sockindex);
+			return false;
+		}
+	}
+	return false;
+}
+
 EthernetClient EthernetServer::available()
 {
-	bool listening = false;
 	uint8_t sockindex = MAX_SOCK_NUM;
 	uint8_t chip, maxindex=MAX_SOCK_NUM;
 
@@ -61,20 +79,16 @@ EthernetClient EthernetServer::available()
 						// status becomes LAST_ACK for short time
 					}
 				}
-			} else if (stat == SnSR::LISTEN) {
-				listening = true;
 			} else if (stat == SnSR::CLOSED) {
 				server_port[i] = 0;
 			}
 		}
 	}
-	if (!listening) begin();
 	return EthernetClient(sockindex);
 }
 
 EthernetClient EthernetServer::accept()
 {
-	bool listening = false;
 	uint8_t sockindex = MAX_SOCK_NUM;
 	uint8_t chip, maxindex=MAX_SOCK_NUM;
 
@@ -93,14 +107,11 @@ EthernetClient EthernetServer::accept()
 				// first data.
 				sockindex = i;
 				server_port[i] = 0; // only return the client once
-			} else if (stat == SnSR::LISTEN) {
-				listening = true;
 			} else if (stat == SnSR::CLOSED) {
 				server_port[i] = 0;
 			}
 		}
 	}
-	if (!listening) begin();
 	return EthernetClient(sockindex);
 }
 
@@ -120,10 +131,12 @@ EthernetServer::operator bool()
 	return false;
 }
 
-#if 0
+#if 1
 void EthernetServer::statusreport()
 {
-	Serial.printf("EthernetServer, port=%d\n", _port);
+	//Serial.printf("EthernetServer, port=%d\n", _port);
+	Serial.print("EthernetServer, port=");
+	Serial.println(_port);
 	for (uint8_t i=0; i < MAX_SOCK_NUM; i++) {
 		uint16_t port = server_port[i];
 		uint8_t stat = Ethernet.socketStatus(i);
@@ -147,8 +160,17 @@ void EthernetServer::statusreport()
 			default: name = "???";
 		}
 		int avail = Ethernet.socketRecvAvailable(i);
-		Serial.printf("  %d: port=%d, status=%s (0x%02X), avail=%d\n",
-			i, port, name, stat, avail);
+		//Serial.printf("  %d: port=%d, status=%s (0x%02X), avail=%d\n",
+		Serial.print("Socket #");
+		Serial.print(i);
+		Serial.print(" :: port=");
+		Serial.print(port);
+		Serial.print(", status=");
+		Serial.print(name);
+		Serial.print(" (0x");
+		Serial.print(stat, HEX);
+		Serial.print("), avail=");
+		Serial.println(avail);
 	}
 }
 #endif
