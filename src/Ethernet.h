@@ -33,11 +33,11 @@
 // up to 4 sockets.  W5200 & W5500 can have up to 8 sockets.  Several bytes
 // of RAM are used for each socket.  Reducing the maximum can save RAM, but
 // you are limited to fewer simultaneous connections.
-#if defined(RAMEND) && defined(RAMSTART) && ((RAMEND - RAMSTART) <= 2048)
-#define MAX_SOCK_NUM 4
-#else
+//#if defined(RAMEND) && defined(RAMSTART) && ((RAMEND - RAMSTART) <= 2048)
+//#define MAX_SOCK_NUM 4
+//#else
 #define MAX_SOCK_NUM 8
-#endif
+//#endif
 
 // By default, each socket uses 2K buffers inside the Wiznet chip.  If
 // MAX_SOCK_NUM is set to fewer than the chip's maximum, uncommenting
@@ -47,6 +47,8 @@
 // does not always seem to work in practice (maybe Wiznet bugs?)
 //#define ETHERNET_LARGE_BUFFERS
 
+// Test showed default Time To Live (TTL) setting for the W5500 is 128. Recommended value is 64 secs, per https://www.iana.org/assignments/ip-parameters/ip-parameters.xhtml#ip-parameters-2
+#define TTL_DEFAULT 64
 
 #include <Arduino.h>
 #include "Client.h"
@@ -75,6 +77,8 @@ class EthernetClass {
 private:
 	static IPAddress _dnsServerAddress;
 	static DhcpClass* _dhcp;
+//	static unsigned long lastSocketUse[MAX_SOCK_NUM];			// +rs 03Feb2019 - records last interaction involving each socket to enable detecting sockets unused for longest time period
+
 public:
 	// Initialise the Ethernet shield to use the provided MAC address and
 	// gain the rest of the configuration through DHCP.
@@ -82,7 +86,18 @@ public:
 	static int begin(uint8_t *mac, unsigned long timeout = 60000, unsigned long responseTimeout = 4000);
 	static int maintain();
 	static EthernetLinkStatus linkStatus();
+	static uint8_t linkRawStatus();
 	static EthernetHardwareStatus hardwareStatus();
+	static uint32_t getWaitTime();
+
+	// Send DISCON command to close idle sockets in CLOSE_WAIT state so they're available when a socket is needed
+#define SOCKDISCONTIMEOUT 5000														 // allow 5 seconds for one or more sockets in CLOSE_WAIT state to close before initiating close of an ESTABLISHED socket
+#ifdef OLDSOCKMGMT
+	static void manageSockets(int8_t minFreeSockets, uint8_t doNotDisconnectSocket); // +rs 03Feb2019
+#else
+	static void manageSockets(EthernetServer* server, uint8_t maxListeners, uint8_t doNotDisconnectSocket); // +rs 16Mar2019
+#endif
+	static unsigned long lastSocketUse[MAX_SOCK_NUM];								 // +rs 03Feb2019 - records last interaction involving each socket to enable detecting sockets unused for longest time period
 
 	// Manaul configuration
 	static void begin(uint8_t *mac, IPAddress ip);
@@ -157,10 +172,11 @@ private:
 	uint16_t _offset; // offset into the packet being sent
 
 protected:
-	uint8_t sockindex;
+	uint8_t sockindex;		// made public 12/18/2018
 	uint16_t _remaining; // remaining bytes of incoming packet yet to be processed
 
 public:
+	//uint8_t sockindex;			// made public 12/18/2018
 	EthernetUDP() : sockindex(MAX_SOCK_NUM) {}  // Constructor
 	virtual uint8_t begin(uint16_t);      // initialize, start listening on specified port. Returns 1 if successful, 0 if there are no sockets available to use
 	virtual uint8_t beginMulticast(IPAddress, uint16_t);  // initialize, start listening on specified port. Returns 1 if successful, 0 if there are no sockets available to use
@@ -238,6 +254,7 @@ public:
 	virtual uint16_t localPort();
 	virtual IPAddress remoteIP();
 	virtual uint16_t remotePort();
+	virtual uint8_t getSocketProtocol();
 	virtual void setConnectionTimeout(uint16_t timeout) { _timeout = timeout; }
 
 	friend class EthernetServer;
@@ -258,11 +275,12 @@ public:
 	EthernetClient available();
 	EthernetClient accept();
 	virtual void begin();
+	virtual bool begin2();
 	virtual size_t write(uint8_t);
 	virtual size_t write(const uint8_t *buf, size_t size);
 	virtual operator bool();
 	using Print::write;
-	//void statusreport();
+	void statusreport();
 
 	// TODO: make private when socket allocation moves to EthernetClass
 	static uint16_t server_port[MAX_SOCK_NUM];
