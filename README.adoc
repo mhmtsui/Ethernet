@@ -2,6 +2,9 @@
 
 With the Arduino Ethernet Shield, this library allows an Arduino board to connect to the internet.
 
+This version contains many bug fixes and provides users more detailed control of socket behavior
+than other Arduino Ethernet libraries for W5x00 shields. It is ideal for server implementations.
+
 For more information about this library please visit us at
 https://www.arduino.cc/en/Reference/Ethernet
 
