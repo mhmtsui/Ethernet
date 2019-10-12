@@ -12,6 +12,9 @@
 #include "Ethernet.h"
 #include "w5100.h"
 
+extern "C" {
+#include "wdtFunctions.h"					////// WARNING! A copy of wdtFunctions had to be put in Ethernet/src directory to make this work. Make sure to update it if the main version ever changes
+}
 
 /***************************************************/
 /**            Default SS pin setting             **/
@@ -46,8 +49,8 @@
 #define SS_PIN_DEFAULT  10
 #endif
 
-
-
+uint32_t W5100Class::cumWaitTime = 0;
+uint32_t W5100Class::numWaitCalls = 0;
 
 // W5100 controller instance
 uint8_t  W5100Class::chip = 0;
@@ -192,6 +195,15 @@ uint8_t W5100Class::init(void)
 		SPI.endTransaction();
 		return 0; // no known chip is responding :-(
 	}
+ 
+	// Test showed default TTL was 128. Recommended value is 64 secs, per https://www.iana.org/assignments/ip-parameters/ip-parameters.xhtml#ip-parameters-2
+	for (i=0; i<MAX_SOCK_NUM; i++) {
+		writeSnTTL(i, TTL_DEFAULT);
+	}
+/*	uint8_t ttl = readSnTTL(0);
+	Serial.print("\nW5100.init() - TTL(0) = ");
+	Serial.println(ttl); */
+
 	SPI.endTransaction();
 	initialized = true;
 	return 1; // successful init
@@ -207,11 +219,12 @@ uint8_t W5100Class::softReset(void)
 	writeMR(0x80);
 	// then wait for soft reset to complete
 	do {
+		delay(1);
 		uint8_t mr = readMR();
 		//Serial.print("mr=");
 		//Serial.println(mr, HEX);
 		if (mr == 0) return 1;
-		delay(1);
+		//delay(1);		// moved 1/11/2019
 	} while (++count < 20);
 	return 0;
 }
@@ -264,6 +277,16 @@ uint8_t W5100Class::isW5500(void)
 	int ver = readVERSIONR_W5500();
 	//Serial.print("version=");
 	//Serial.println(ver);
+
+/*	uint16_t currRTRval = 0;
+	currRTRval = readRTR();
+	Serial.print("\nisW5500() - RTR = ");
+	Serial.println(currRTRval);
+	uint8_t currRCRval = 0;
+	currRCRval = readRCR();
+	Serial.print("isW5500() - RCR = ");
+	Serial.println(currRCRval);*/
+
 	if (ver != 4) return 0;
 	//Serial.println("chip is W5500");
 	return 1;
@@ -467,8 +490,104 @@ uint16_t W5100Class::read(uint16_t addr, uint8_t *buf, uint16_t len)
 
 void W5100Class::execCmdSn(SOCKET s, SockCMD _cmd)
 {
-	// Send command to socket
-	writeSnCR(s, _cmd);
+	W5100.writeSnIR(s, SnIR::TIMEOUT | SnIR::DISCON);	// clear SnIR TIMEOUT bit +rs 18Feb2019
+	//delayMicroseconds(1);								// wait for register to clear
+
+	writeSnCR(s, _cmd);									// Send command to socket
 	// Wait for command to complete
-	while (readSnCR(s)) ;
+	if (_cmd == Sock_CONNECT || _cmd == Sock_DISCON) {		
+	  //delayMicroseconds(20);							// Connect and Disconnect consistently fail without this delay
+	  delayMicroseconds(1);								// Connect and Disconnect consistently fail without this delay
+	}
+
+	do {
+		if (_cmd == Sock_CONNECT || _cmd == Sock_DISCON)
+			//delayMicroseconds(20);						// Connect and Disconnect often fail without this longer delay
+			delayMicroseconds(1);						// Connect and Disconnect often fail without this longer delay
+		else
+			delayMicroseconds(1);
+		wdtClear();										// clear watchdog timer if needed
+	} while (readSnCR(s));
+}
+
+// waitForCmd is called after a socket command is sent. It waits for the socket status register to indicate that the command has been successfully executed
+bool W5100Class::waitForCmd(SOCKET s, uint8_t SnSR_expected)
+{
+	uint8_t IRstat;
+	uint32_t start = micros();
+	uint8_t stat;
+//	return true;
+
+	W5100Class::numWaitCalls++;
+
+	// Now wait for socket status register to have expected value
+	SPI.beginTransaction(SPI_ETHERNET_SETTINGS);		// begin SPI transaction
+
+	do {												// W5500 sets socket status register when command is complete
+		//delayMicroseconds(50);							// delay to give W5x00 time to process command
+		delayMicroseconds(1);							// delay to give W5x00 time to process command
+		stat = W5100.readSnSR(s);						// read W5x00 Socket n Status Register
+		IRstat = W5100.readSnIR(s);						// read W5x00 Socket n Interrupt Register
+		if ((IRstat & SnIR::TIMEOUT) == SnIR::TIMEOUT ||// if timeout occurs before command completes...
+			(IRstat & SnIR::DISCON) == SnIR::DISCON) {	//  or client disconnects...
+			SPI.endTransaction();						//   end SPI transaction...
+			cumWaitTime+= micros() - start;				//    record wait time...
+			return false;								//     and return fail.
+		}
+		if (micros() - start > 500000) {				// if state has not changed within 1/2 second...
+			SPI.endTransaction();						//  end SPI transaction...
+			cumWaitTime+= micros() - start;				//   record wait time...
+			return false;								//    and return fail.
+		}
+		wdtClear();										// clear watchdog timer if needed
+	} while (stat != SnSR_expected);					// if the expected result occurs...
+
+	SPI.endTransaction();								//  end SPI transaction...
+	cumWaitTime+= micros() - start;						//   record wait time...
+	return true;										//    and return success.
+}
+
+// this version of waitForCmd is called when a socket command may result in one of two different socket status register values upon successful completion
+bool W5100Class::waitForCmd(SOCKET s, uint8_t SnSR_expected1, uint8_t SnSR_expected2, uint8_t SnSR_expected3)
+{
+	uint8_t IRstat;
+	uint32_t start = micros();
+	uint8_t stat;
+//	return true;
+
+	W5100Class::numWaitCalls++;
+	
+	// Now wait for socket status register to have expected value
+	SPI.beginTransaction(SPI_ETHERNET_SETTINGS);		// begin SPI transaction
+	W5100.writeSnIR(s, SnIR::TIMEOUT);					// clear SnIR TIMEOUT bit
+	do {												// W5500 sets socket status register when command is complete
+		//delayMicroseconds(50);							// delay to give W5x00 time to process command
+		delayMicroseconds(1);							// delay to give W5x00 time to process command
+		stat = W5100.readSnSR(s);						// read W5x00 Socket n Status Register
+		IRstat = W5100.readSnIR(s);						// read W5x00 Socket n Interrupt Register
+		if ((IRstat & SnIR::TIMEOUT) == SnIR::TIMEOUT ||// if timeout occurs before command completes...
+			(IRstat & SnIR::DISCON) == SnIR::DISCON) {	//  or client disconnects...
+			SPI.endTransaction();						//   end SPI transaction and...
+			cumWaitTime+= micros() - start;				//   record wait time...
+			return false;								//    and return fail.
+		}
+		if (micros() - start > 500000) {				// if state has not changed within 1/2 second...
+			SPI.endTransaction();						//  end SPI transaction...
+			cumWaitTime+= micros() - start;				//   record wait time...
+			return false;								//    and return fail.
+		}
+		wdtClear();										// clear watchdog timer if needed
+	} while (stat != SnSR_expected1 && 
+			 stat != SnSR_expected2 && 
+			 stat != SnSR_expected3);					// if one of the 3 expected results occurs...
+
+	SPI.endTransaction();								//  end SPI transaction and...
+	cumWaitTime+= micros() - start;
+	return true;										//   return true for success.
+}
+
+uint32_t W5100Class::getAvgWait(void) { 
+	
+	return W5100Class::cumWaitTime/W5100Class::numWaitCalls; 
+
 }

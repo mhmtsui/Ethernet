@@ -18,7 +18,7 @@
 #include <SPI.h>
 
 // Safe for all chips
-#define SPI_ETHERNET_SETTINGS SPISettings(14000000, MSBFIRST, SPI_MODE0)
+#define SPI_ETHERNET_SETTINGS SPISettings(33000000, MSBFIRST, SPI_MODE0)
 
 // Safe for W5200 and W5500, but too fast for W5100
 // Uncomment this if you know you'll never need W5100 support.
@@ -145,6 +145,14 @@ public:
 
   static void execCmdSn(SOCKET s, SockCMD _cmd);
 
+  bool waitForCmd(SOCKET s, uint8_t SnSR_expected);
+  bool waitForCmd(SOCKET s, uint8_t SnSR_expected1, uint8_t SnSR_expected2, uint8_t SnSR_expected3);
+
+  static uint32_t cumWaitTime;
+  static uint32_t numWaitCalls;
+
+  static uint32_t getAvgWait(void);
+
 
   // W5100 Registers
   // ---------------
@@ -197,19 +205,36 @@ public:
   __GP_REGISTER_N(SIPR,   0x000F, 4); // Source IP address
   __GP_REGISTER8 (IR,     0x0015);    // Interrupt
   __GP_REGISTER8 (IMR,    0x0016);    // Interrupt Mask
-  __GP_REGISTER16(RTR,    0x0017);    // Timeout address
-  __GP_REGISTER8 (RCR,    0x0019);    // Retry count
+  ///// W5100 only //////
   __GP_REGISTER8 (RMSR,   0x001A);    // Receive memory size (W5100 only)
   __GP_REGISTER8 (TMSR,   0x001B);    // Transmit memory size (W5100 only)
   __GP_REGISTER8 (PATR,   0x001C);    // Authentication type address in PPPoE mode
+  /* The following addresses are incorrect for the W5500 that I'm using. They may be correct for the W5100 and/or W5200
+  __GP_REGISTER16(RTR,    0x0017);    // Timeout address
+  __GP_REGISTER8 (RCR,    0x0019);    // Retry count
+  __GP_REGISTER8 (RMSR,   0x001A);    // Receive memory size (W5100 only)
   __GP_REGISTER8 (PTIMER, 0x0028);    // PPP LCP Request Timer
   __GP_REGISTER8 (PMAGIC, 0x0029);    // PPP LCP Magic Number
   __GP_REGISTER_N(UIPR,   0x002A, 4); // Unreachable IP address in UDP mode (W5100 only)
-  __GP_REGISTER16(UPORT,  0x002E);    // Unreachable Port address in UDP mode (W5100 only)
+  __GP_REGISTER16(UPORT,  0x002E);    // Unreachable Port address in UDP mode (W5100 only) 
+  //////// end of W5100/W5200 addresses */
+  /////// W5500 only /////////
+  __GP_REGISTER16(RTR,    0x0019);    // Timeout address
+  __GP_REGISTER8 (RCR,    0x001B);    // Retry count
+  __GP_REGISTER8 (PTIMER, 0x001C);    // PPP LCP Request Timer
+  __GP_REGISTER8 (PMAGIC, 0x001D);    // PPP LCP Magic Number
+  __GP_REGISTER_N(PHAR,   0x001E, 6); // PPP Destination MAC address
+  __GP_REGISTER16(PSID,   0x0024);    // PPP Session ID
+  __GP_REGISTER16(PMRU,   0x0026);    // PPP Maximum Segment Size
+  __GP_REGISTER_N(UIPR,   0x0028, 4); // Unreachable IP address in UDP mode (W5500 only)
+  __GP_REGISTER16(UPORT,  0x002C);    // Unreachable Port address in UDP mode (W5500 only)
+  __GP_REGISTER8 (PHYCFGR_W5500,     0x002E);    // PHY Configuration register, default: 10111xxx 
+  ////// end of W5500 addresses /////////
   __GP_REGISTER8 (VERSIONR_W5200,0x001F);   // Chip Version Register (W5200 only)
   __GP_REGISTER8 (VERSIONR_W5500,0x0039);   // Chip Version Register (W5500 only)
   __GP_REGISTER8 (PSTATUS_W5200,     0x0035);    // PHY Status
-  __GP_REGISTER8 (PHYCFGR_W5500,     0x002E);    // PHY Configuration register, default: 10111xxx
+  
+  friend class EthernetClass;
 
 
 #undef __GP_REGISTER8
@@ -278,18 +303,22 @@ public:
   __SOCKET_REGISTER_N(SnDIPR,     0x000C, 4)     // Destination IP Addr
   __SOCKET_REGISTER16(SnDPORT,    0x0010)        // Destination Port
   __SOCKET_REGISTER16(SnMSSR,     0x0012)        // Max Segment Size
-  __SOCKET_REGISTER8(SnPROTO,     0x0014)        // Protocol in IP RAW Mode
+  //__SOCKET_REGISTER8(SnPROTO,     0x0014)        // Protocol in IP RAW Mode
+  __SOCKET_REGISTER8(RESERVEDSnPROTO,     0x0014)        // Protocol in IP RAW Mode - Reserved address in W5500
   __SOCKET_REGISTER8(SnTOS,       0x0015)        // IP TOS
   __SOCKET_REGISTER8(SnTTL,       0x0016)        // IP TTL
-  __SOCKET_REGISTER8(SnRX_SIZE,   0x001E)        // RX Memory Size (W5200 only)
-  __SOCKET_REGISTER8(SnTX_SIZE,   0x001F)        // RX Memory Size (W5200 only)
+  __SOCKET_REGISTER8(SnRX_SIZE,   0x001E)        // RX Memory Size (W5200 & W5500 only)
+  __SOCKET_REGISTER8(SnTX_SIZE,   0x001F)        // TX Memory Size (W5200 & W5500 only)
   __SOCKET_REGISTER16(SnTX_FSR,   0x0020)        // TX Free Size
   __SOCKET_REGISTER16(SnTX_RD,    0x0022)        // TX Read Pointer
   __SOCKET_REGISTER16(SnTX_WR,    0x0024)        // TX Write Pointer
   __SOCKET_REGISTER16(SnRX_RSR,   0x0026)        // RX Free Size
   __SOCKET_REGISTER16(SnRX_RD,    0x0028)        // RX Read Pointer
   __SOCKET_REGISTER16(SnRX_WR,    0x002A)        // RX Write Pointer (supported?)
-
+  __SOCKET_REGISTER8(Sn_IMR,	  0x002C)        // Socket Interrupt Mask
+  __SOCKET_REGISTER16(Sn_FRAG,    0x002D)        // Socket Fragment Offset in IP Header
+  __SOCKET_REGISTER8(Sn_KPALVTR,  0x002F)        // Keep-alive timer
+  
 #undef __SOCKET_REGISTER8
 #undef __SOCKET_REGISTER16
 #undef __SOCKET_REGISTER_N
