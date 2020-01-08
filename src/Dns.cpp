@@ -3,9 +3,9 @@
 // Released under Apache License, version 2.0
 
 #include <Arduino.h>
-#include "Ethernet.h"
+#include "eethernet.h"
 #include "Dns.h"
-#include "utility/w5100.h"
+#include "w5100.h"
 
 
 #define SOCKET_NONE              255

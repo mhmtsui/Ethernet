@@ -15,7 +15,9 @@
 #define	W5100_H_INCLUDED
 
 #include <Arduino.h>
-#include <SPI.h>
+//#include <SPI.h>
+
+
 
 // Safe for all chips
 #define SPI_ETHERNET_SETTINGS SPISettings(33000000, MSBFIRST, SPI_MODE0)
@@ -29,7 +31,7 @@
 
 
 // Require Ethernet.h, because we need MAX_SOCK_NUM
-#ifndef ethernet_h_
+#ifndef eethernet_h_
 #error "Ethernet.h must be included before w5100.h"
 #endif
 
@@ -417,7 +419,7 @@ private:
 	inline static void resetSS() {
 		*(ss_pin_reg+12) = ss_pin_mask;
 	}
-#elif defined(__PIC32MX__)
+#elif defined(__PIC32MX__) || defined(__PIC32MZ__)
 	static volatile uint32_t *ss_pin_reg;
 	static uint32_t ss_pin_mask;
 	inline static void initSS() {

@@ -2,9 +2,9 @@
 // Author: Jordan Terrell - blog.jordanterrell.com
 
 #include <Arduino.h>
-#include "Ethernet.h"
+#include "eethernet.h"
 #include "Dhcp.h"
-#include "utility/w5100.h"
+#include "w5100.h"
 
 int DhcpClass::beginWithDHCP(uint8_t *mac, unsigned long timeout, unsigned long responseTimeout)
 {

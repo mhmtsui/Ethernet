@@ -19,8 +19,8 @@
 */
 
 #include <Arduino.h>
-#include "Ethernet.h"
-#include "utility/w5100.h"
+#include "eethernet.h"
+#include "w5100.h"
 
 #if ARDUINO >= 156 && !defined(ARDUINO_ARCH_PIC32)
 extern void yield(void);
@@ -28,24 +28,7 @@ extern void yield(void);
 #define yield()
 #endif
 
-//#define DEBUG
-#ifdef DEBUG
- #define DEBUG_PRINT(x)       Serial.print (x)
- #define DEBUG_PRINTLN(x)     Serial.println (x)
- #define DEBUG_PRINTDEC(x)    Serial.print (x, DEC)
- #define DEBUG_PRINTLNDEC(x)  Serial.println (x, DEC)
- #define DEBUG_PRINTHEX(x)    Serial.print (x, HEX)
- #define DEBUG_PRINTLNHEX(x)  Serial.println (x, HEX)
- #define DEBUG_FLUSH()        Serial.flush()
-#else
- #define DEBUG_PRINT(x)
- #define DEBUG_PRINTLN(x) 
- #define DEBUG_PRINTDEC(x)
- #define DEBUG_PRINTLNDEC(x)
- #define DEBUG_PRINTHEX(x)
- #define DEBUG_PRINTLNHEX(x)
- #define DEBUG_FLUSH()
-#endif
+
 
 // TODO: randomize this when not using DHCP, but how?
 static uint16_t local_port = 49152;  // 49152 to 65535
@@ -90,11 +73,23 @@ uint8_t EthernetClass::socketBegin(uint8_t protocol, uint16_t port)
 	if (chip == 51) maxindex = 4; // W5100 chip never supports more than 4 sockets
 #endif
 	//Serial.printf("W5000socket begin, protocol=%d, port=%d\n", protocol, port);
-	SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
+	//SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
 	// look at all the hardware sockets, use any that are closed (unused)
+	DEBUG_PRINT("MAXINDEX: ");
+	DEBUG_PRINTLN(maxindex);
 	for (s=0; s < maxindex; s++) {
 		status[s] = W5100.readSnSR(s);
-		if (status[s] == SnSR::CLOSED) goto makesocket;
+		DEBUG_PRINT("SOCKET# ");
+		DEBUG_PRINT(s);
+		DEBUG_PRINT("STATUS:");
+		DEBUG_PRINTHEX(status[s]);
+		DEBUG_PRINTLN("");
+
+		if (status[s] == SnSR::CLOSED){
+			DEBUG_PRINT("MAKE SOCKET #");
+			DEBUG_PRINTLN(s);
+			goto makesocket;
+		} 
 	}
 	//Serial.printf("W5000socket step2\n");
 	// as a last resort, forcibly close any already closing
@@ -114,7 +109,7 @@ uint8_t EthernetClass::socketBegin(uint8_t protocol, uint16_t port)
 		if (stat == SnSR::CLOSE_WAIT && socketRecvAvailable(s) == 0) goto closemakesocket;  // added socketRecAvailable(s) check on Jan 30, 2019
 	}
 #endif */
-	SPI.endTransaction();
+	//SPI.endTransaction();
 	//DEBUG_PRINTLN("****************************** socketBegin - ALL SOCKETS ARE IN USE ******************************");
 	return MAX_SOCK_NUM; // all sockets are in use
 /*closemakesocket:
@@ -165,7 +160,7 @@ makesocket:
 	state[s].RX_inc = 0;
 	state[s].TX_FSR = 0;
 	//Serial.printf("W5000socket prot=%d, RX_RD=%d\n", W5100.readSnMR(s), state[s].RX_RD);
-	SPI.endTransaction();
+	//SPI.endTransaction();
 	EthernetClass::lastSocketUse[s] = millis();			// record time at which socket was opened to support socket management.
 	return s;
 }
@@ -182,7 +177,7 @@ uint8_t EthernetClass::socketBeginMulticast(uint8_t protocol, IPAddress ip, uint
 	if (chip == 51) maxindex = 4; // W5100 chip never supports more than 4 sockets
 #endif
 	//Serial.printf("W5000socket begin, protocol=%d, port=%d\n", protocol, port);
-	SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
+	//SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
 	// look at all the hardware sockets, use any that are closed (unused)
 	for (s=0; s < maxindex; s++) {
 		status[s] = W5100.readSnSR(s);
@@ -207,7 +202,7 @@ uint8_t EthernetClass::socketBeginMulticast(uint8_t protocol, IPAddress ip, uint
 		if (stat == SnSR::CLOSE_WAIT) goto closemakesocket;
 	}
 #endif
-	SPI.endTransaction();
+	//SPI.endTransaction();
 	return MAX_SOCK_NUM; // all sockets are in use
 closemakesocket:
 	//Serial.printf("W5000socket close\n");
@@ -239,7 +234,7 @@ makesocket:
 	state[s].RX_inc = 0;
 	state[s].TX_FSR = 0;
 	//Serial.printf("W5000socket prot=%d, RX_RD=%d\n", W5100.readSnMR(s), state[s].RX_RD);
-	SPI.endTransaction();
+	//SPI.endTransaction();
 	EthernetClass::lastSocketUse[s] = millis();			// record time at which socket was opened to support socket management.
 	return s;
 }
@@ -247,9 +242,9 @@ makesocket:
 //
 uint8_t EthernetClass::socketStatus(uint8_t s)
 {
-	SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
+	//SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
 	uint8_t status = W5100.readSnSR(s);
-	SPI.endTransaction();
+	//SPI.endTransaction();
 	return status;
 }
 
@@ -259,9 +254,9 @@ uint8_t EthernetClass::socketStatus(uint8_t s)
 void EthernetClass::socketClose(uint8_t s)
 {
 	DEBUG_PRINT("socketClose() - closing socket #");
-	SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
+	//SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
 	W5100.execCmdSn(s, Sock_CLOSE);
-	SPI.endTransaction();
+	//SPI.endTransaction();
 	DEBUG_PRINT("socketClose() - closing socket #");
 	DEBUG_PRINTLN(s);
 	if (!W5100.waitForCmd(s, SnSR::CLOSE_WAIT, SnSR::CLOSED, SnSR::FIN_WAIT)) {
@@ -278,13 +273,13 @@ void EthernetClass::socketClose(uint8_t s)
 //
 uint8_t EthernetClass::socketListen(uint8_t s)
 {
-	SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
+	//SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
 	if (W5100.readSnSR(s) != SnSR::INIT) {
-		SPI.endTransaction();
+		//SPI.endTransaction();
 		return 0;
 	}
 	W5100.execCmdSn(s, Sock_LISTEN);
-	SPI.endTransaction();
+	//SPI.endTransaction();
 	if (!W5100.waitForCmd(s, SnSR::LISTEN)) {
 		DEBUG_PRINTLN("socketListen() - timeout waiting for socket to enter listen mode");
 	}
@@ -299,12 +294,12 @@ uint8_t EthernetClass::socketListen(uint8_t s)
 void EthernetClass::socketConnect(uint8_t s, uint8_t * addr, uint16_t port)
 {
 	// set destination IP
-	SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
+	//SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
 	W5100.writeSnDIPR(s, addr);
 	W5100.writeSnDPORT(s, port);
 	delay(90);				// +rs 1/10/2019 
 	W5100.execCmdSn(s, Sock_CONNECT);
-	SPI.endTransaction();
+	//SPI.endTransaction();
 	if (!W5100.waitForCmd(s, SnSR::ESTABLISHED)) {
 		DEBUG_PRINTLN("socketConnect() - timeout waiting for socket to connect");
 	}
@@ -321,9 +316,9 @@ void EthernetClass::socketDisconnect(uint8_t s)
 	DEBUG_PRINT(s);
 	DEBUG_PRINT(" with status = 0x");
 	DEBUG_PRINTLNHEX(socketStatus(s));
-	SPI.beginTransaction(SPI_ETHERNET_SETTINGS);		// start SPI transaction
+	//SPI.beginTransaction(SPI_ETHERNET_SETTINGS);		// start SPI transaction
 	W5100.execCmdSn(s, Sock_DISCON);					// send socket disconnect command
-	SPI.endTransaction();								// and end SPI transaction
+	//SPI.endTransaction();								// and end SPI transaction
 	if (!W5100.waitForCmd(s, SnSR::TIME_WAIT, SnSR::CLOSED, SnSR::FIN_WAIT)) {			// wait for command to complete, as indicated by Socket n Status Register
 		DEBUG_PRINTLN("socketDisconnect() - timeout waiting for socket to disconnect");
 	} else {
@@ -386,7 +381,7 @@ int EthernetClass::socketRecv(uint8_t s, uint8_t *buf, int16_t len)
 {
 	// Check how much data is available
 	int ret = state[s].RX_RSR;
-	SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
+	//SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
 	if (ret < len) {
 		uint16_t rsr = getSnRX_RSR(s);
 		ret = rsr - state[s].RX_inc;
@@ -424,7 +419,7 @@ int EthernetClass::socketRecv(uint8_t s, uint8_t *buf, int16_t len)
 			state[s].RX_inc = inc;
 		}
 	}
-	SPI.endTransaction();
+	//SPI.endTransaction();
 	//Serial.printf("socketRecv, ret=%d\n", ret);
 	EthernetClass::lastSocketUse[s] = millis();			// record time at which socket read data to support socket management.
 	return ret;
@@ -434,9 +429,9 @@ uint16_t EthernetClass::socketRecvAvailable(uint8_t s)
 {
 	uint16_t ret = state[s].RX_RSR;
 	if (ret == 0) {
-		SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
+		//SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
 		uint16_t rsr = getSnRX_RSR(s);
-		SPI.endTransaction();
+		//SPI.endTransaction();
 		ret = rsr - state[s].RX_inc;
 		state[s].RX_RSR = ret;
 		//Serial.printf("sockRecvAvailable s=%d, RX_RSR=%d\n", s, ret);
@@ -449,10 +444,10 @@ uint16_t EthernetClass::socketRecvAvailable(uint8_t s)
 uint8_t EthernetClass::socketPeek(uint8_t s)
 {
 	uint8_t b;
-	SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
+	//SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
 	uint16_t ptr = state[s].RX_RD;
 	W5100.read((ptr & W5100.SMASK) + W5100.RBASE(s), &b, 1);
-	SPI.endTransaction();
+	//SPI.endTransaction();
 	return b;
 }
 
@@ -515,10 +510,10 @@ uint16_t EthernetClass::socketSend(uint8_t s, const uint8_t * buf, uint16_t len)
 	// if freebuf is available, start.
 	uint32_t start = millis();										// record time loop is entered +rs 17Feb2019
 	do {
-		SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
+		//SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
 		freesize = getSnTX_FSR(s);
 		status = W5100.readSnSR(s);
-		SPI.endTransaction();
+		//SPI.endTransaction();
 		if ((status != SnSR::ESTABLISHED) && (status != SnSR::CLOSE_WAIT)) {
 			ret = 0;
 			break;
@@ -531,7 +526,7 @@ uint16_t EthernetClass::socketSend(uint8_t s, const uint8_t * buf, uint16_t len)
 	} while (freesize < ret);				// this would be a good place to add a timeout in case peer process crashes without closing socket
 
 	// copy data
-	SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
+	//SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
 	write_data(s, 0, (uint8_t *)buf, ret);
 	W5100.execCmdSn(s, Sock_SEND);
 
@@ -539,16 +534,16 @@ uint16_t EthernetClass::socketSend(uint8_t s, const uint8_t * buf, uint16_t len)
 	while ( (W5100.readSnIR(s) & SnIR::SEND_OK) != SnIR::SEND_OK ) {
 		/* m2008.01 [bj] : reduce code */
 		if ( W5100.readSnSR(s) == SnSR::CLOSED ) {
-			SPI.endTransaction();
+			//SPI.endTransaction();
 			return 0;
 		}
-		SPI.endTransaction();
+		//SPI.endTransaction();
 		yield();
-		SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
+		//SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
 	}
 	/* +2008.01 bj */
 	W5100.writeSnIR(s, SnIR::SEND_OK);
-	SPI.endTransaction();
+	//SPI.endTransaction();
 	EthernetClass::lastSocketUse[s] = millis();			// record time at which socket sent data to support socket management.
 	return ret;
 }
@@ -557,10 +552,10 @@ uint16_t EthernetClass::socketSendAvailable(uint8_t s)
 {
 	uint8_t status=0;
 	uint16_t freesize=0;
-	SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
+	//SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
 	freesize = getSnTX_FSR(s);
 	status = W5100.readSnSR(s);
-	SPI.endTransaction();
+	//SPI.endTransaction();
 	if ((status == SnSR::ESTABLISHED) || (status == SnSR::CLOSE_WAIT)) {
 		return freesize;
 	}
@@ -571,7 +566,7 @@ uint16_t EthernetClass::socketBufferData(uint8_t s, uint16_t offset, const uint8
 {
 	//Serial.printf("  bufferData, offset=%d, len=%d\n", offset, len);
 	uint16_t ret =0;
-	SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
+	//SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
 	uint16_t txfree = getSnTX_FSR(s);
 	if (len > txfree) {
 		ret = txfree; // check size not to exceed MAX size.
@@ -579,7 +574,7 @@ uint16_t EthernetClass::socketBufferData(uint8_t s, uint16_t offset, const uint8
 		ret = len;
 	}
 	write_data(s, offset, buf, ret);
-	SPI.endTransaction();
+	//SPI.endTransaction();
 	return ret;
 }
 
@@ -589,16 +584,16 @@ bool EthernetClass::socketStartUDP(uint8_t s, uint8_t* addr, uint16_t port)
 		((port == 0x00)) ) {
 			return false;
 	}
-	SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
+	//SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
 	W5100.writeSnDIPR(s, addr);
 	W5100.writeSnDPORT(s, port);
-	SPI.endTransaction();
+	//SPI.endTransaction();
 	return true;
 }
 
 bool EthernetClass::socketSendUDP(uint8_t s)
 {
-	SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
+	//SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
 	W5100.execCmdSn(s, Sock_SEND);
 
 	/* +2008.01 bj */
@@ -606,18 +601,18 @@ bool EthernetClass::socketSendUDP(uint8_t s)
 		if (W5100.readSnIR(s) & SnIR::TIMEOUT) {
 			/* +2008.01 [bj]: clear interrupt */
 			W5100.writeSnIR(s, (SnIR::SEND_OK|SnIR::TIMEOUT));
-			SPI.endTransaction();
+			//SPI.endTransaction();
 			//Serial.printf("sendUDP timeout\n");
 			return false;
 		}
-		SPI.endTransaction();
+		//SPI.endTransaction();
 		yield();
-		SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
+		//SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
 	}
 
 	/* +2008.01 bj */
 	W5100.writeSnIR(s, SnIR::SEND_OK);
-	SPI.endTransaction();
+	//SPI.endTransaction();
 
 	//Serial.printf("sendUDP ok\n");
 	/* Sent ok */
@@ -663,11 +658,11 @@ void EthernetClass::manageSockets(EthernetServer* server, uint8_t maxListeners, 
 	for (s = 0; s < maxindex; s++)
 		socketAge[s] = 0;
 
-	SPI.beginTransaction(SPI_ETHERNET_SETTINGS);								// begin SPI transaction
+	//SPI.beginTransaction(SPI_ETHERNET_SETTINGS);								// begin SPI transaction
 	// look at all the hardware sockets, record and take action based on current states
 	for (s = 0; s < maxindex; s++) {											// for each hardware socket ...
 		status = W5100.readSnSR(s);												//  get socket status...
-		if (status == SnSR::CLOSE_WAIT && socketRecvAvailable(s) == 0) {		//   if CLOSE_WAIT and no data available to read...
+		if (status == SnSR::CLOSE_WAIT){// && socketRecvAvailable(s) == 0) {		//   if CLOSE_WAIT and no data available to read...
  			W5100.execCmdSn(s, Sock_DISCON);								    //       send DISCON command...
 			EthernetClass::lastSocketUse[s] = millis();							//        record time at which it was sent so we can send CLOSE command if peer doesn't respond...
 			socketsDisconnecting++;												//         and increment the number of sockets that are disconnecting.
@@ -744,7 +739,7 @@ void EthernetClass::manageSockets(EthernetServer* server, uint8_t maxListeners, 
 		}
 	}
 
-	SPI.endTransaction();														// when done with all sockets...
+	//SPI.endTransaction();														// when done with all sockets...
 	return;																		//  return without waiting for socket(s) to close.
 }
 

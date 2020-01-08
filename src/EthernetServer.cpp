@@ -19,8 +19,8 @@
  */
 
 #include <Arduino.h>
-#include "Ethernet.h"
-#include "utility/w5100.h"
+#include "eethernet.h"
+#include "w5100.h"
 
 uint16_t EthernetServer::server_port[MAX_SOCK_NUM];
 
@@ -32,8 +32,8 @@ void EthernetServer::begin()
 		if (Ethernet.socketListen(sockindex)) {
 			server_port[sockindex] = _port;
 		} else {
-			//Serial.print("Failed to start listening on socket ");
-			//Serial.println(sockindex);
+			DEBUG_PRINT("Failed to start listening on socket");
+			DEBUG_PRINTLN(sockindex);
 			Ethernet.socketDisconnect(sockindex);
 		}
 	}
@@ -47,8 +47,8 @@ bool EthernetServer::begin2()
 			server_port[sockindex] = _port;
 			return true;
 		} else {
-			//Serial.print("Failed to start listening on socket ");
-			//Serial.println(sockindex);
+			DEBUG_PRINT("Failed to start listening on socket");
+			DEBUG_PRINTLN(sockindex);
 			Ethernet.socketDisconnect(sockindex);
 			return false;
 		}

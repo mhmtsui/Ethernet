@@ -19,9 +19,9 @@
  */
 
 #include <Arduino.h>
-#include "Ethernet.h"
+#include "eethernet.h"
 #include "Dns.h"
-#include "utility/w5100.h"
+#include "w5100.h"
 
 int EthernetClient::connect(const char * host, uint16_t port)
 {
@@ -225,9 +225,9 @@ uint16_t EthernetClient::localPort()
 {
 	if (sockindex >= MAX_SOCK_NUM) return 0;
 	uint16_t port;
-	SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
+	//SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
 	port = W5100.readSnPORT(sockindex);
-	SPI.endTransaction();
+	//SPI.endTransaction();
 	return port;
 }
 
@@ -237,9 +237,9 @@ IPAddress EthernetClient::remoteIP()
 {
 	if (sockindex >= MAX_SOCK_NUM) return IPAddress((uint32_t)0);
 	uint8_t remoteIParray[4];
-	SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
+	//SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
 	W5100.readSnDIPR(sockindex, remoteIParray);
-	SPI.endTransaction();
+	//SPI.endTransaction();
 	return IPAddress(remoteIParray);
 }
 
@@ -249,9 +249,9 @@ uint16_t EthernetClient::remotePort()
 {
 	if (sockindex >= MAX_SOCK_NUM) return 0;
 	uint16_t port;
-	SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
+	//SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
 	port = W5100.readSnDPORT(sockindex);
-	SPI.endTransaction();
+	//SPI.endTransaction();
 	return port;
 }
 
@@ -261,9 +261,9 @@ uint8_t EthernetClient::getSocketProtocol()
 {
 	if (sockindex >= MAX_SOCK_NUM) return 0;
 	uint8_t protocol;
-	SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
+	//SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
 	protocol = W5100.readSnMR(sockindex) & 0x0F;	// protocol is in 4 LSBs of Socket n Mode Register: 0 = closed, 1 = TCP, 2 = UDP, 4 = MACRAW
-	SPI.endTransaction();
+	//SPI.endTransaction();
 	return protocol;
 }
 

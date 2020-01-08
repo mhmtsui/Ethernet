@@ -9,9 +9,12 @@
  */
 
 #include <Arduino.h>
-#include "Ethernet.h"
+#include <DSPI.h>
+#include "eethernet.h"
 #include "w5100.h"
 
+DSPI0 _spi0;
+//DSPI0 * _DSPI_Class = &(_spi0);
 
 /***************************************************/
 /**            Default SS pin setting             **/
@@ -71,7 +74,7 @@ W5100Class W5100;
 #elif defined(__SAM3X8E__) || defined(__SAM3A8C__) || defined(__SAM3A4C__)
   volatile uint32_t * W5100Class::ss_pin_reg;
   uint32_t W5100Class::ss_pin_mask;
-#elif defined(__PIC32MX__)
+#elif defined(__PIC32MX__) || defined(__PIC32MZ__)
   volatile uint32_t * W5100Class::ss_pin_reg;
   uint32_t W5100Class::ss_pin_mask;
 #elif defined(ARDUINO_ARCH_ESP8266)
@@ -99,12 +102,22 @@ uint8_t W5100Class::init(void)
 	// until the reset pulse is ended.  If your hardware has a shorter
 	// reset time, this can be edited or removed.
 	delay(560);
-	//Serial.println("w5100 init");
+	DEBUG_PRINTLN("w5100 init");
 
-	SPI.begin();
+	_spi0.begin(ss_pin);
 	initSS();
 	resetSS();
-	SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
+	//SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
+	_spi0.disableInterruptTransfer();
+	_spi0.setTransferSize(DSPI_8BIT);
+	_spi0.setSpeed(33000000);
+	_spi0.setMode(DSPI_MODE0);
+
+	p32_spi *pspi = (p32_spi *) _DSPI0_BASE;
+	pspi->sxCon.clr = (1 << _SPICON_ON);
+	pspi->sxCon.reg = 0;
+	pspi->sxCon.set = ((0 << _SPICON_CKP) | (1 << _SPICON_CKE) | (1 << _SPICON_SMP) | (1 << _SPICON_MSTEN));
+	pspi->sxCon.set = (1 << _SPICON_ON);
 
 	// Attempt W5200 detection first, because W5200 does not properly
 	// reset its SPI state when CS goes high (inactive).  Communication
@@ -187,9 +200,9 @@ uint8_t W5100Class::init(void)
 	// that's heard other SPI communication if its chip select
 	// pin wasn't high when a SD card or other SPI chip was used.
 	} else {
-		//Serial.println("no chip :-(");
+		DEBUG_PRINTLN("no chip :-(");
 		chip = 0;
-		SPI.endTransaction();
+		//SPI.endTransaction();
 		return 0; // no known chip is responding :-(
 	}
  
@@ -197,11 +210,11 @@ uint8_t W5100Class::init(void)
 	for (i=0; i<MAX_SOCK_NUM; i++) {
 		writeSnTTL(i, TTL_DEFAULT);
 	}
-/*	uint8_t ttl = readSnTTL(0);
-	Serial.print("\nW5100.init() - TTL(0) = ");
-	Serial.println(ttl); */
+	uint8_t ttl = readSnTTL(0);
+	DEBUG_PRINT("\nW5100.init() - TTL(0) = ");
+	DEBUG_PRINTLN(ttl); 
 
-	SPI.endTransaction();
+	//SPI.endTransaction();
 	initialized = true;
 	return 1; // successful init
 }
@@ -296,15 +309,15 @@ W5100Linkstatus W5100Class::getLinkStatus()
 	if (!init()) return UNKNOWN;
 	switch (chip) {
 	  case 52:
-		SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
+		//SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
 		phystatus = readPSTATUS_W5200();
-		SPI.endTransaction();
+		//SPI.endTransaction();
 		if (phystatus & 0x20) return LINK_ON;
 		return LINK_OFF;
 	  case 55:
-		SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
+		//SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
 		phystatus = readPHYCFGR_W5500();
-		SPI.endTransaction();
+		//SPI.endTransaction();
 		if (phystatus & 0x01) return LINK_ON;
 		return LINK_OFF;
 	  default:
@@ -319,11 +332,11 @@ uint16_t W5100Class::write(uint16_t addr, const uint8_t *buf, uint16_t len)
 	if (chip == 51) {
 		for (uint16_t i=0; i<len; i++) {
 			setSS();
-			SPI.transfer(0xF0);
-			SPI.transfer(addr >> 8);
-			SPI.transfer(addr & 0xFF);
+			_spi0.transfer(0xF0);
+			_spi0.transfer(addr >> 8);
+			_spi0.transfer(addr & 0xFF);
 			addr++;
-			SPI.transfer(buf[i]);
+			_spi0.transfer(buf[i]);
 			resetSS();
 		}
 	} else if (chip == 52) {
@@ -332,13 +345,13 @@ uint16_t W5100Class::write(uint16_t addr, const uint8_t *buf, uint16_t len)
 		cmd[1] = addr & 0xFF;
 		cmd[2] = ((len >> 8) & 0x7F) | 0x80;
 		cmd[3] = len & 0xFF;
-		SPI.transfer(cmd, 4);
+		_spi0.transfer(4, cmd);
 #ifdef SPI_HAS_TRANSFER_BUF
-		SPI.transfer(buf, NULL, len);
+		_spi0.transfer(len, buf);
 #else
 		// TODO: copy 8 bytes at a time to cmd[] and block transfer
 		for (uint16_t i=0; i < len; i++) {
-			SPI.transfer(buf[i]);
+			_spi0.transfer(buf[i]);
 		}
 #endif
 		resetSS();
@@ -386,15 +399,15 @@ uint16_t W5100Class::write(uint16_t addr, const uint8_t *buf, uint16_t len)
 			for (uint8_t i=0; i < len; i++) {
 				cmd[i + 3] = buf[i];
 			}
-			SPI.transfer(cmd, len + 3);
+			_spi0.transfer(len + 3, cmd);
 		} else {
-			SPI.transfer(cmd, 3);
+			_spi0.transfer(3, cmd);
 #ifdef SPI_HAS_TRANSFER_BUF
-			SPI.transfer(buf, NULL, len);
+			_spi0.transfer(len, buf);
 #else
 			// TODO: copy 8 bytes at a time to cmd[] and block transfer
 			for (uint16_t i=0; i < len; i++) {
-				SPI.transfer(buf[i]);
+				_spi0.transfer(buf[i]);
 			}
 #endif
 		}
@@ -411,17 +424,17 @@ uint16_t W5100Class::read(uint16_t addr, uint8_t *buf, uint16_t len)
 		for (uint16_t i=0; i < len; i++) {
 			setSS();
 			#if 1
-			SPI.transfer(0x0F);
-			SPI.transfer(addr >> 8);
-			SPI.transfer(addr & 0xFF);
+			_spi0.transfer(0x0F);
+			_spi0.transfer(addr >> 8);
+			_spi0.transfer(addr & 0xFF);
 			addr++;
-			buf[i] = SPI.transfer(0);
+			_spi0.transfer(0);
 			#else
 			cmd[0] = 0x0F;
 			cmd[1] = addr >> 8;
 			cmd[2] = addr & 0xFF;
 			cmd[3] = 0;
-			SPI.transfer(cmd, 4); // TODO: why doesn't this work?
+			_spi0.transfer(cmd, 4); // TODO: why doesn't this work?
 			buf[i] = cmd[3];
 			addr++;
 			#endif
@@ -433,9 +446,9 @@ uint16_t W5100Class::read(uint16_t addr, uint8_t *buf, uint16_t len)
 		cmd[1] = addr & 0xFF;
 		cmd[2] = (len >> 8) & 0x7F;
 		cmd[3] = len & 0xFF;
-		SPI.transfer(cmd, 4);
+		_spi0.transfer(4, cmd);
 		memset(buf, 0, len);
-		SPI.transfer(buf, len);
+		_spi0.transfer(len, buf, buf);
 		resetSS();
 	} else { // chip == 55
 		setSS();
@@ -477,9 +490,9 @@ uint16_t W5100Class::read(uint16_t addr, uint8_t *buf, uint16_t len)
 			cmd[2] = ((addr >> 6) & 0xE0) | 0x18; // 2K buffers
 			#endif
 		}
-		SPI.transfer(cmd, 3);
+		_spi0.transfer(3, cmd);
 		memset(buf, 0, len);
-		SPI.transfer(buf, len);
+		_spi0.transfer(len, buf , buf);
 		resetSS();
 	}
 	return len;
@@ -517,7 +530,7 @@ bool W5100Class::waitForCmd(SOCKET s, uint8_t SnSR_expected)
 	W5100Class::numWaitCalls++;
 
 	// Now wait for socket status register to have expected value
-	SPI.beginTransaction(SPI_ETHERNET_SETTINGS);		// begin SPI transaction
+	//SPI.beginTransaction(SPI_ETHERNET_SETTINGS);		// begin SPI transaction
 
 	do {												// W5500 sets socket status register when command is complete
 		//delayMicroseconds(50);							// delay to give W5x00 time to process command
@@ -526,7 +539,7 @@ bool W5100Class::waitForCmd(SOCKET s, uint8_t SnSR_expected)
 		IRstat = W5100.readSnIR(s);						// read W5x00 Socket n Interrupt Register
 		if ((IRstat & SnIR::TIMEOUT) == SnIR::TIMEOUT ||// if timeout occurs before command completes...
 			(IRstat & SnIR::DISCON) == SnIR::DISCON) {	//  or client disconnects...
-			SPI.endTransaction();						//   end SPI transaction and...
+			//SPI.endTransaction();						//   end SPI transaction and...
 			cumWaitTime+= millis() - start;
 			return false;								//    return fail.
 		}
@@ -534,7 +547,7 @@ bool W5100Class::waitForCmd(SOCKET s, uint8_t SnSR_expected)
 			return false; */
 	} while (stat != SnSR_expected);					// if the expected result occurs...
 
-	SPI.endTransaction();								//  end SPI transaction and...
+	//SPI.endTransaction();								//  end SPI transaction and...
 	W5100Class::cumWaitTime+= micros() - start;
 	return true;										//   return success.
 }
@@ -550,7 +563,7 @@ bool W5100Class::waitForCmd(SOCKET s, uint8_t SnSR_expected1, uint8_t SnSR_expec
 	W5100Class::numWaitCalls++;
 	
 	// Now wait for socket status register to have expected value
-	SPI.beginTransaction(SPI_ETHERNET_SETTINGS);		// begin SPI transaction
+	//SPI.beginTransaction(SPI_ETHERNET_SETTINGS);		// begin SPI transaction
 	W5100.writeSnIR(s, SnIR::TIMEOUT);					// clear SnIR TIMEOUT bit
 	do {												// W5500 sets socket status register when command is complete
 		//delayMicroseconds(50);							// delay to give W5x00 time to process command
@@ -559,7 +572,7 @@ bool W5100Class::waitForCmd(SOCKET s, uint8_t SnSR_expected1, uint8_t SnSR_expec
 		IRstat = W5100.readSnIR(s);						// read W5x00 Socket n Interrupt Register
 		if ((IRstat & SnIR::TIMEOUT) == SnIR::TIMEOUT ||// if timeout occurs before command completes...
 			(IRstat & SnIR::DISCON) == SnIR::DISCON) {	//  or client disconnects...
-			SPI.endTransaction();						//   end SPI transaction and...
+			//SPI.endTransaction();						//   end SPI transaction and...
 			cumWaitTime+= millis() - start;
 			return false;								//    return fail
 		}
@@ -569,7 +582,7 @@ bool W5100Class::waitForCmd(SOCKET s, uint8_t SnSR_expected1, uint8_t SnSR_expec
 			 stat != SnSR_expected2 && 
 			 stat != SnSR_expected3);					// if one of the 3 expected results occurs...
 
-	SPI.endTransaction();								//  end SPI transaction and...
+	//SPI.endTransaction();								//  end SPI transaction and...
 	W5100Class::cumWaitTime+= micros() - start;
 	return true;										//   return true for success.
 }
