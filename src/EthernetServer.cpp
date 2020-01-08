@@ -32,8 +32,8 @@ void EthernetServer::begin()
 		if (Ethernet.socketListen(sockindex)) {
 			server_port[sockindex] = _port;
 		} else {
-			DEBUG_PRINT("Failed to start listening on socket");
-			DEBUG_PRINTLN(sockindex);
+			//Serial.print("Failed to start listening on socket ");
+			//Serial.println(sockindex);
 			Ethernet.socketDisconnect(sockindex);
 		}
 	}
@@ -47,8 +47,8 @@ bool EthernetServer::begin2()
 			server_port[sockindex] = _port;
 			return true;
 		} else {
-			DEBUG_PRINT("Failed to start listening on socket");
-			DEBUG_PRINTLN(sockindex);
+			//Serial.print("Failed to start listening on socket ");
+			//Serial.println(sockindex);
 			Ethernet.socketDisconnect(sockindex);
 			return false;
 		}

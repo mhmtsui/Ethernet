@@ -261,9 +261,15 @@ uint8_t EthernetClient::getSocketProtocol()
 {
 	if (sockindex >= MAX_SOCK_NUM) return 0;
 	uint8_t protocol;
+<<<<<<< HEAD
 	//SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
 	protocol = W5100.readSnMR(sockindex) & 0x0F;	// protocol is in 4 LSBs of Socket n Mode Register: 0 = closed, 1 = TCP, 2 = UDP, 4 = MACRAW
 	//SPI.endTransaction();
+=======
+	SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
+	protocol = W5100.readSnMR(sockindex) & 0x0F;	// protocol is in 4 LSBs of Socket n Mode Register: 0 = closed, 1 = TCP, 2 = UDP, 4 = MACRAW
+	SPI.endTransaction();
+>>>>>>> 0a53f3573f69cfb72adb9c9f02960267ecc58779
 	return protocol;
 }
 
