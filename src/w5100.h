@@ -419,11 +419,7 @@ private:
 	inline static void resetSS() {
 		*(ss_pin_reg+12) = ss_pin_mask;
 	}
-<<<<<<< HEAD
 #elif defined(__PIC32MX__) || defined(__PIC32MZ__)
-=======
-#elif defined(__PIC32MX__)
->>>>>>> 0a53f3573f69cfb72adb9c9f02960267ecc58779
 	static volatile uint32_t *ss_pin_reg;
 	static uint32_t ss_pin_mask;
 	inline static void initSS() {
