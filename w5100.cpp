@@ -122,7 +122,7 @@ uint8_t W5100Class::init(void)
 	_spi0.setSpeed(33000000);
 	_spi0.setMode(DSPI_MODE0);
 
-	p32_spi *pspi = (p32_spi *) _DSPI2_BASE;
+	p32_spi *pspi = (p32_spi *) SPI_BASE;
 	pspi->sxCon.clr = (1 << _SPICON_ON);
 	pspi->sxCon.reg = 0;
 	pspi->sxCon.set = ((0 << _SPICON_CKP) | (1 << _SPICON_CKE) | (1 << _SPICON_SMP) | (1 << _SPICON_MSTEN));
