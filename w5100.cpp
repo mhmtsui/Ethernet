@@ -7,13 +7,22 @@
  * or the GNU Lesser General Public License version 2.1, both as
  * published by the Free Software Foundation.
  */
-
+#include <cpudefs.h>
 #include <Arduino.h>
 #include <DSPI.h>
 #include "eethernet.h"
 #include "w5100.h"
 
-DSPI0 _spi0;
+#ifdef defined (__PIC32MX3XX__)
+	DSPI0 _spi0;
+	#define SPI_BASE _DSPI0_BASE
+#elif defined (__PIC32MZXX__)
+	DSPI2 _spi0;
+	#define SPI_BASE _DSPI2_BASE
+#else
+	DSPI0 _spi0;
+	#define SPI_BASE _DSPI0_BASE
+#endif
 //DSPI0 * _DSPI_Class = &(_spi0);
 
 /***************************************************/
@@ -113,7 +122,7 @@ uint8_t W5100Class::init(void)
 	_spi0.setSpeed(33000000);
 	_spi0.setMode(DSPI_MODE0);
 
-	p32_spi *pspi = (p32_spi *) _DSPI0_BASE;
+	p32_spi *pspi = (p32_spi *) _DSPI2_BASE;
 	pspi->sxCon.clr = (1 << _SPICON_ON);
 	pspi->sxCon.reg = 0;
 	pspi->sxCon.set = ((0 << _SPICON_CKP) | (1 << _SPICON_CKE) | (1 << _SPICON_SMP) | (1 << _SPICON_MSTEN));
