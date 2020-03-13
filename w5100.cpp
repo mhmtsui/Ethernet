@@ -12,6 +12,7 @@
 #include <DSPI.h>
 #include "eethernet.h"
 #include "w5100.h"
+#include "board.h"
 
 #ifdef defined (__PIC32MX3XX__)
 	DSPI0 _spi0;
