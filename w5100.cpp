@@ -24,7 +24,6 @@
 	DSPI0 _spi0;
 	#define SPI_BASE _DSPI0_BASE
 #endif
-//DSPI0 * _DSPI_Class = &(_spi0);
 
 /***************************************************/
 /**            Default SS pin setting             **/
