@@ -259,6 +259,9 @@ public:
 	virtual int availableForWrite(void);
 	virtual size_t write(uint8_t);
 	virtual size_t write(const uint8_t *buf, size_t size);
+	virtual size_t write_P(const uint8_t *buf, size_t size) {
+		return write(buf, size);
+	}
 	virtual int available();
 	virtual int read();
 	virtual int read(uint8_t *buf, size_t size);
@@ -296,11 +299,15 @@ public:
 	EthernetClient available();
 	EthernetClient accept();
 	virtual void begin();
+	virtual void begin(uint16_t port);
 	virtual bool begin2();
+	virtual bool begin2(uint16_t port);
+	virtual void close();
 	virtual size_t write(uint8_t);
 	virtual size_t write(const uint8_t *buf, size_t size);
 	virtual operator bool();
 	using Print::write;
+	using ClientType = EthernetClient;
 	void statusreport();
 
 	// TODO: make private when socket allocation moves to EthernetClass

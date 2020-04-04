@@ -39,6 +39,11 @@ void EthernetServer::begin()
 	}
 }
 
+void EthernetServer::begin(uint16_t port){
+	_port = port;
+	begin();
+}
+
 bool EthernetServer::begin2()
 {
 	uint8_t sockindex = Ethernet.socketBegin(SnMR::TCP, _port);
@@ -54,6 +59,21 @@ bool EthernetServer::begin2()
 		}
 	}
 	return false;
+}
+
+bool EthernetServer::begin2(uint16_t port)
+{
+	_port = port;
+	return begin2();
+}
+
+void EthernetServer::close()
+{
+	for (uint8_t i=0; i < MAX_SOCK_NUM; i++) {
+		if (server_port[i] == _port) {
+			Ethernet.socketDisconnect(i);
+		}
+	}
 }
 
 EthernetClient EthernetServer::available()
