@@ -96,6 +96,29 @@ size_t EthernetUDP::write(const uint8_t *buffer, size_t size)
 	return bytes_written;
 }
 
+size_t EthernetUDP::write(Stream& stream)
+{
+	size_t avail = stream.available();
+	uint8_t buf [1024];
+	size_t totwrote = 0;
+	size_t remain = avail;
+	size_t read = 0; 
+	do {
+		read = (remain > 1024)? 1024 : remain;
+		avail = stream.readBytes(buf, read);
+		remain = remain - avail;
+		uint8_t* w = buf;
+		while (avail)
+		{
+			size_t wrote = write(w, avail);
+			w += wrote;
+			avail -= wrote;
+			totwrote += wrote;
+		}
+	}while (remain);
+	return totwrote;
+}
+
 int EthernetUDP::parsePacket()
 {
 	// discard any remaining bytes in the last packet

@@ -218,7 +218,7 @@ public:
 	virtual size_t write(uint8_t);
 	// Write size bytes from buffer into the packet
 	virtual size_t write(const uint8_t *buffer, size_t size);
-
+	virtual size_t write(Stream& stream);
 	using Print::write;
 
 	// Start processing the next available incoming packet
@@ -262,6 +262,7 @@ public:
 	virtual size_t write_P(const uint8_t *buf, size_t size) {
 		return write(buf, size);
 	}
+	virtual size_t write(Stream& stream);
 	virtual int available();
 	virtual int read();
 	virtual int read(uint8_t *buf, size_t size);
@@ -305,6 +306,7 @@ public:
 	virtual void close();
 	virtual size_t write(uint8_t);
 	virtual size_t write(const uint8_t *buf, size_t size);
+	virtual size_t write(Stream& stream);
 	virtual operator bool();
 	using Print::write;
 	using ClientType = EthernetClient;
