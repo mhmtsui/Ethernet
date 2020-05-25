@@ -428,10 +428,10 @@ private:
 		pinMode(ss_pin, OUTPUT);
 	}
 	inline static void setSS() {
-		*(ss_pin_reg+8+1) = ss_pin_mask;
+		*(ss_pin_reg+8+1) = ss_pin_mask;noInterrupts();
 	}
 	inline static void resetSS() {
-		*(ss_pin_reg+8+2) = ss_pin_mask;
+		*(ss_pin_reg+8+2) = ss_pin_mask;interrupts();
 	}
 
 #elif defined(ARDUINO_ARCH_ESP8266)
@@ -468,10 +468,10 @@ private:
 		pinMode(ss_pin, OUTPUT);
 	}
 	inline static void setSS() {
-		digitalWrite(ss_pin, LOW);
+		digitalWrite(ss_pin, LOW);noInterrupts();
 	}
 	inline static void resetSS() {
-		digitalWrite(ss_pin, HIGH);
+		digitalWrite(ss_pin, HIGH);interrupts();
 	}
 #endif
 };
