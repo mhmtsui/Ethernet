@@ -10,6 +10,7 @@
 #include <cpudefs.h>
 #include <Arduino.h>
 #include <DSPI.h>
+#include <sys/kmem.h>
 #include "eethernet.h"
 #include "w5100.h"
 #include "board.h"
@@ -20,6 +21,12 @@
 #elif defined (__PIC32MZXX__)
 	DSPI2 _spi0;
 	#define SPI_BASE _DSPI2_BASE
+	//#define ASYNC_ENA
+	#define INT_ENA
+	#ifdef ASYNC_ENA
+	volatile uint8_t __attribute__((coherent)) txBuf_g[2050];
+	volatile uint8_t __attribute__((coherent)) rxBuf_g[2050];
+	#endif
 #else
 	DSPI0 _spi0;
 	#define SPI_BASE _DSPI0_BASE
@@ -112,12 +119,15 @@ uint8_t W5100Class::init(void)
 	// reset time, this can be edited or removed.
 	delay(560);
 	DEBUG_PRINTLN("w5100 init");
-
+#ifdef ASYNC_ENA
+	_spi0.beginasync(ss_pin, 6, 7);
+	//_spi0.begin(ss_pin);
+#else
 	_spi0.begin(ss_pin);
+#endif
 	initSS();
 	resetSS();
 	//SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
-	_spi0.disableInterruptTransfer();
 	_spi0.setTransferSize(DSPI_8BIT);
 	_spi0.setSpeed(33000000);
 	_spi0.setMode(DSPI_MODE0);
@@ -127,6 +137,12 @@ uint8_t W5100Class::init(void)
 	pspi->sxCon.reg = 0;
 	pspi->sxCon.set = ((0 << _SPICON_CKP) | (1 << _SPICON_CKE) | (1 << _SPICON_SMP) | (1 << _SPICON_MSTEN));
 	pspi->sxCon.set = (1 << _SPICON_ON);
+
+#ifdef INT_ENA
+	_spi0.enableInterruptTransfer();
+#else
+	_spi0.disableInterruptTransfer();
+#endif
 
 	// Attempt W5200 detection first, because W5200 does not properly
 	// reset its SPI state when CS goes high (inactive).  Communication
@@ -233,15 +249,15 @@ uint8_t W5100Class::softReset(void)
 {
 	uint16_t count=0;
 
-	//Serial.println("Wiznet soft reset");
+	DEBUG_PRINTLN("Wiznet soft reset");
 	// write to reset bit
 	writeMR(0x80);
 	// then wait for soft reset to complete
 	do {
 		delay(1);
 		uint8_t mr = readMR();
-		//Serial.print("mr=");
-		//Serial.println(mr, HEX);
+		DEBUG_PRINT("mr=");
+		DEBUG_PRINTLNHEX(mr);
 		if (mr == 0) return 1;
 		//delay(1);		// moved 1/11/2019
 	} while (++count < 20);
@@ -251,7 +267,7 @@ uint8_t W5100Class::softReset(void)
 uint8_t W5100Class::isW5100(void)
 {
 	chip = 51;
-	//Serial.println("w5100.cpp: detect W5100 chip");
+	DEBUG_PRINTLN("w5100.cpp: detect W5100 chip");
 	if (!softReset()) return 0;
 	writeMR(0x10);
 	if (readMR() != 0x10) return 0;
@@ -259,14 +275,14 @@ uint8_t W5100Class::isW5100(void)
 	if (readMR() != 0x12) return 0;
 	writeMR(0x00);
 	if (readMR() != 0x00) return 0;
-	//Serial.println("chip is W5100");
+	DEBUG_PRINTLN("chip is W5100");
 	return 1;
 }
 
 uint8_t W5100Class::isW5200(void)
 {
 	chip = 52;
-	//Serial.println("w5100.cpp: detect W5200 chip");
+	DEBUG_PRINTLN("w5100.cpp: detect W5200 chip");
 	if (!softReset()) return 0;
 	writeMR(0x08);
 	if (readMR() != 0x08) return 0;
@@ -275,17 +291,17 @@ uint8_t W5100Class::isW5200(void)
 	writeMR(0x00);
 	if (readMR() != 0x00) return 0;
 	int ver = readVERSIONR_W5200();
-	//Serial.print("version=");
-	//Serial.println(ver);
+	DEBUG_PRINT("version=");
+	DEBUG_PRINTLN(ver);
 	if (ver != 3) return 0;
-	//Serial.println("chip is W5200");
+	DEBUG_PRINTLN("chip is W5200");
 	return 1;
 }
 
 uint8_t W5100Class::isW5500(void)
 {
 	chip = 55;
-	//Serial.println("w5100.cpp: detect W5500 chip");
+	DEBUG_PRINTLN("w5100.cpp: detect W5500 chip");
 	if (!softReset()) return 0;
 	writeMR(0x08);
 	if (readMR() != 0x08) return 0;
@@ -294,20 +310,20 @@ uint8_t W5100Class::isW5500(void)
 	writeMR(0x00);
 	if (readMR() != 0x00) return 0;
 	int ver = readVERSIONR_W5500();
-	//Serial.print("version=");
-	//Serial.println(ver);
+	DEBUG_PRINT("version=");
+	DEBUG_PRINTLN(ver);
 
 /*	uint16_t currRTRval = 0;
 	currRTRval = readRTR();
-	Serial.print("\nisW5500() - RTR = ");
-	Serial.println(currRTRval);
+	DEBUG_PRINT("\nisW5500() - RTR = ");
+	DEBUG_PRINTLN(currRTRval);
 	uint8_t currRCRval = 0;
 	currRCRval = readRCR();
-	Serial.print("isW5500() - RCR = ");
-	Serial.println(currRCRval);*/
+	DEBUG_PRINT("isW5500() - RCR = ");
+	DEBUG_PRINTLN(currRCRval);*/
 
 	if (ver != 4) return 0;
-	//Serial.println("chip is W5500");
+	DEBUG_PRINTLN("chip is W5500");
 	return 1;
 }
 
@@ -337,15 +353,47 @@ W5100Linkstatus W5100Class::getLinkStatus()
 uint16_t W5100Class::write(uint16_t addr, const uint8_t *buf, uint16_t len)
 {
 	uint8_t cmd[8];
-
+#ifdef ASYNC_ENA
+	// uint8_t * ptr;
+	// for(ptr = (uint8_t *) buf; ptr < buf+len; ptr+=16){
+	// 	_cache(((1)|(5<<2)), ptr);
+	// }
+	// uint8_t* ptr1;//uint8_t* ptr2;
+	// for(ptr1=(uint8_t*) buf; ptr1<buf+len;ptr1++){
+	// 	DEBUG_PRINT(*ptr1);
+	// 	DEBUG_PRINT(',');
+	// 	DEBUG_PRINT(*((uint8_t*)(KVA0_TO_KVA1(ptr1))));
+	// }
+	// DEBUG_PRINTLN();	
+#endif
 	if (chip == 51) {
 		for (uint16_t i=0; i<len; i++) {
 			setSS();
+#ifdef ASYNC_ENA
+			//uint8_t temp[4];
+			txBuf_g[0] = 0xF0;
+			txBuf_g[1] = addr>>8;
+			txBuf_g[2] = addr&0xFF;
+			addr++;
+			txBuf_g[3] = buf[i];
+			// _cache(((1)|(5<<2)), temp);
+			// _sync();
+			_spi0.asyncTransfertimeout(4, (uint8_t*) txBuf_g, 30);
+#elif defined(INT_ENA)
+			uint8_t temp[4];
+			temp[0] = 0xF0;
+			temp[1] = addr>>8;
+			temp[2] = addr&0xFF;
+			addr++;
+			temp[3] = buf[i];
+			_spi0.intTransfertimeout(4, temp, 30);
+#else
 			_spi0.transfer(0xF0);
 			_spi0.transfer(addr >> 8);
 			_spi0.transfer(addr & 0xFF);
 			addr++;
 			_spi0.transfer(buf[i]);
+#endif
 			resetSS();
 		}
 	} else if (chip == 52) {
@@ -354,14 +402,38 @@ uint16_t W5100Class::write(uint16_t addr, const uint8_t *buf, uint16_t len)
 		cmd[1] = addr & 0xFF;
 		cmd[2] = ((len >> 8) & 0x7F) | 0x80;
 		cmd[3] = len & 0xFF;
-		_spi0.transfer(4, cmd);
-#ifdef SPI_HAS_TRANSFER_BUF
-		_spi0.transfer(len, buf);
+#ifdef ASYNC_ENA
+		// _cache(((1)|(5<<2)), cmd);
+		// _sync();
+		txBuf_g[0] = addr >> 8;
+		txBuf_g[1] = addr & 0xFF;
+		txBuf_g[2] = ((len >> 8) & 0x7F) | 0x80;
+		txBuf_g[3] = len & 0xFF;
+		_spi0.asyncTransfertimeout(4, (uint8_t*) txBuf_g, 30);
+#elif defined(INT_ENA)
+		_spi0.intTransfertimeout(4, cmd, 30);
 #else
+		_spi0.transfer(4, cmd);
+#endif
+#ifdef ASYNC_ENA
+	// uint8_t * ptr;
+	// for(ptr = (uint8_t *) buf; ptr < buf+len; ptr+=1){
+	// 	_cache(((1)|(5<<2)), ptr);
+	// 	_sync();
+	// }
+	memcpy((void*) txBuf_g, buf, len);
+	_spi0.asyncTransfertimeout(len, (uint8_t*) txBuf_g, 30);
+#elif defined(INT_ENA)
+	_spi0.intTransfertimeout(len, (uint8_t*) buf, 30);
+#else
+	#ifdef SPI_HAS_TRANSFER_BUF
+		_spi0.transfer(len, (uint8_t*) buf);
+	#else
 		// TODO: copy 8 bytes at a time to cmd[] and block transfer
 		for (uint16_t i=0; i < len; i++) {
 			_spi0.transfer(buf[i]);
 		}
+	#endif
 #endif
 		resetSS();
 	} else { // chip == 55
@@ -408,16 +480,46 @@ uint16_t W5100Class::write(uint16_t addr, const uint8_t *buf, uint16_t len)
 			for (uint8_t i=0; i < len; i++) {
 				cmd[i + 3] = buf[i];
 			}
-			_spi0.transfer(len + 3, cmd);
-		} else {
-			_spi0.transfer(3, cmd);
-#ifdef SPI_HAS_TRANSFER_BUF
-			_spi0.transfer(len, buf);
+#ifdef ASYNC_ENA
+			// _cache(((1)|(5<<2)), cmd);
+			// _sync();
+			memcpy((void *) txBuf_g, cmd, len+3);
+			_spi0.asyncTransfertimeout(len+3, (uint8_t*) txBuf_g, 30);
+#elif defined(INT_ENA)
+			_spi0.intTransfertimeout(len+3, cmd, 30);
 #else
+			_spi0.transfer(len + 3, cmd);
+#endif
+		} else {
+#ifdef ASYNC_ENA
+			// _cache(((1)|(5<<2)), cmd);
+			// _sync();
+			memcpy((void *) txBuf_g, cmd, 3);
+			_spi0.asyncTransfertimeout(3, (uint8_t*) txBuf_g, 30);
+#elif defined(INT_ENA)
+			_spi0.intTransfertimeout(3, cmd, 30);
+#else
+			_spi0.transfer(3, cmd);
+#endif
+#ifdef ASYNC_ENA
+			// uint8_t * ptr;
+			// for(ptr = (uint8_t *) buf; ptr < buf+len; ptr+=1){
+			// 	_cache(((1)|(5<<2)), ptr);
+			// 	_sync();
+			// }
+			memcpy((void *) txBuf_g, buf, len);
+			_spi0.asyncTransfertimeout(len, (uint8_t*) txBuf_g, 30);
+#elif defined(INT_ENA)
+			_spi0.intTransfertimeout(len, (uint8_t*) buf, 30);
+#else
+	#ifdef SPI_HAS_TRANSFER_BUF
+			_spi0.transfer(len, (uint8_t*) buf);
+	#else
 			// TODO: copy 8 bytes at a time to cmd[] and block transfer
 			for (uint16_t i=0; i < len; i++) {
 				_spi0.transfer(buf[i]);
 			}
+	#endif
 #endif
 		}
 		resetSS();
@@ -428,10 +530,40 @@ uint16_t W5100Class::write(uint16_t addr, const uint8_t *buf, uint16_t len)
 uint16_t W5100Class::read(uint16_t addr, uint8_t *buf, uint16_t len)
 {
 	uint8_t cmd[4];
-
+#ifdef ASYNC_ENA
+	// uint8_t * ptr;
+	// for(ptr = (uint8_t *) buf; ptr < buf+len; ptr+=16){
+	// 	_cache(((1)|(5<<2)), ptr);
+	// }
+#endif
 	if (chip == 51) {
 		for (uint16_t i=0; i < len; i++) {
 			setSS();
+#ifdef ASYNC_ENA
+			txBuf_g[0] = 0x0F;
+			txBuf_g[1] = addr >> 8;
+			txBuf_g[2] = addr & 0xFF;
+			txBuf_g[3] = 0;
+			// _cache(((1)|(5<<2)), cmd);
+			// _sync();
+			_spi0.asyncTransfertimeout(3, (uint8_t*) txBuf_g, 30); // TODO: why doesn't this work?
+			_spi0.asyncTransfertimeout(1, (uint8_t)0x00, (uint8_t*) &txBuf_g[3], 30);
+			//_cache(((1)|(4<<2)), cmd);
+			//_sync();
+			//uint8_t * tmp = (uint8_t*) KVA0_TO_KVA1(cmd);
+			buf[i] = txBuf_g[3];
+			addr++;
+#elif defined(INT_ENA)
+			cmd[0] = 0x0F;
+			cmd[1] = addr >> 8;
+			cmd[2] = addr & 0xFF;
+			cmd[3] = 0;
+			//_cache(((1)|(5<<2)), cmd);
+			_spi0.intTransfertimeout(4, cmd, cmd, 30); // TODO: why doesn't this work?
+			//_cache(((1)|(4<<2)), cmd);
+			buf[i] = cmd[3];
+			addr++;
+#else
 			#if 1
 			_spi0.transfer(0x0F);
 			_spi0.transfer(addr >> 8);
@@ -447,6 +579,7 @@ uint16_t W5100Class::read(uint16_t addr, uint8_t *buf, uint16_t len)
 			buf[i] = cmd[3];
 			addr++;
 			#endif
+#endif
 			resetSS();
 		}
 	} else if (chip == 52) {
@@ -455,9 +588,35 @@ uint16_t W5100Class::read(uint16_t addr, uint8_t *buf, uint16_t len)
 		cmd[1] = addr & 0xFF;
 		cmd[2] = (len >> 8) & 0x7F;
 		cmd[3] = len & 0xFF;
+#ifdef ASYNC_ENA
+		// _cache(((1)|(5<<2)), cmd);
+		// _sync();
+		txBuf_g[0] = addr >> 8;
+		txBuf_g[1] = addr & 0xFF;
+		txBuf_g[2] = (len >> 8) & 0x7F;
+		txBuf_g[3] = len & 0xFF;
+		_spi0.asyncTransfertimeout(4,(uint8_t*)  txBuf_g, 30);		
+#elif defined(INT_ENA)
+		_spi0.intTransfertimeout(4, cmd, 30);
+#else
 		_spi0.transfer(4, cmd);
+#endif
 		memset(buf, 0, len);
+#ifdef ASYNC_ENA
+		memset((void *) rxBuf_g, 0, len);
+		_spi0.asyncTransfertimeout(len, (uint8_t) 0x00, (uint8_t*)  rxBuf_g, 30);
+		memcpy(buf, (void *)  rxBuf_g, len);
+		// uint8_t * ptr;
+		// for(ptr = (uint8_t *) buf; ptr < buf+len; ptr+=1){
+		// 	_cache(((1)|(4<<2)), ptr);
+		// 	_sync();
+		// }
+		//buf = (uint8_t *) KVA0_TO_KVA1(buf);
+#elif defined(INT_ENA)
+		_spi0.intTransfertimeout(len, (uint8_t) 0x0, buf, 30);
+#else
 		_spi0.transfer(len, buf, buf);
+#endif
 		resetSS();
 	} else { // chip == 55
 		setSS();
@@ -499,9 +658,38 @@ uint16_t W5100Class::read(uint16_t addr, uint8_t *buf, uint16_t len)
 			cmd[2] = ((addr >> 6) & 0xE0) | 0x18; // 2K buffers
 			#endif
 		}
+#ifdef ASYNC_ENA
+		// _cache(((1)|(5<<2)), cmd);
+		// _sync();
+		memcpy((void *) txBuf_g, cmd, 3);
+		_spi0.asyncTransfertimeout(3, (uint8_t*) txBuf_g, 30);
+#elif defined(INT_ENA)
+		_spi0.intTransfertimeout(3, cmd, 30);
+#else
 		_spi0.transfer(3, cmd);
+#endif
 		memset(buf, 0, len);
+#ifdef ASYNC_ENA
+		memset((void*) rxBuf_g, 0, len);
+		_spi0.asyncTransfertimeout(len, (uint8_t) 0x00, (uint8_t*) rxBuf_g, 30);
+		memcpy(buf, (void *) rxBuf_g, len);
+		// uint8_t * ptr;
+		// for(ptr = (uint8_t *) buf; ptr < buf+len; ptr+=1){
+		// 	_cache(((1)|(4<<2)), ptr);
+		// 	_sync();
+		// }
+		// DEBUG_PRINT("READ KVA0");
+		// DEBUG_PRINTLN(buf[0]);
+		// buf = (uint8_t *) KVA0_TO_KVA1(buf);
+		// DEBUG_PRINT("READ KVA1");
+		// DEBUG_PRINTLN(buf[0]);
+#elif defined(INT_ENA)
+		_spi0.intTransfertimeout(len, (uint8_t)0x00, buf, 30);
+		// DEBUG_PRINT("READ");
+		// DEBUG_PRINTLN(buf[0]);
+#else
 		_spi0.transfer(len, buf , buf);
+#endif
 		resetSS();
 	}
 	return len;
@@ -510,19 +698,19 @@ uint16_t W5100Class::read(uint16_t addr, uint8_t *buf, uint16_t len)
 void W5100Class::execCmdSn(SOCKET s, SockCMD _cmd)
 {
 	W5100.writeSnIR(s, SnIR::TIMEOUT | SnIR::DISCON);	// clear SnIR TIMEOUT bit +rs 18Feb2019
-	//delayMicroseconds(1);								// wait for register to clear
+	delayMicroseconds(1);								// wait for register to clear
 
 	writeSnCR(s, _cmd);									// Send command to socket
 	// Wait for command to complete
 	if (_cmd == Sock_CONNECT || _cmd == Sock_DISCON) {		
-	  //delayMicroseconds(20);							// Connect and Disconnect consistently fail without this delay
-	  delayMicroseconds(1);								// Connect and Disconnect consistently fail without this delay
+	  delayMicroseconds(20);							// Connect and Disconnect consistently fail without this delay
+	  //delayMicroseconds(1);								// Connect and Disconnect consistently fail without this delay
 	}
 	
 	do {
 		if (_cmd == Sock_CONNECT || _cmd == Sock_DISCON)
-			//delayMicroseconds(20);						// Connect and Disconnect often fail without this longer delay
-			delayMicroseconds(1);						// Connect and Disconnect often fail without this longer delay
+			delayMicroseconds(20);						// Connect and Disconnect often fail without this longer delay
+			//delayMicroseconds(1);						// Connect and Disconnect often fail without this longer delay
 		else
 			delayMicroseconds(1);
 	} while (readSnCR(s));
@@ -542,8 +730,8 @@ bool W5100Class::waitForCmd(SOCKET s, uint8_t SnSR_expected)
 	//SPI.beginTransaction(SPI_ETHERNET_SETTINGS);		// begin SPI transaction
 
 	do {												// W5500 sets socket status register when command is complete
-		//delayMicroseconds(50);							// delay to give W5x00 time to process command
-		delayMicroseconds(1);							// delay to give W5x00 time to process command
+		delayMicroseconds(50);							// delay to give W5x00 time to process command
+		//delayMicroseconds(1);							// delay to give W5x00 time to process command
 		stat = W5100.readSnSR(s);						// read W5x00 Socket n Status Register
 		IRstat = W5100.readSnIR(s);						// read W5x00 Socket n Interrupt Register
 		if ((IRstat & SnIR::TIMEOUT) == SnIR::TIMEOUT ||// if timeout occurs before command completes...
@@ -575,8 +763,8 @@ bool W5100Class::waitForCmd(SOCKET s, uint8_t SnSR_expected1, uint8_t SnSR_expec
 	//SPI.beginTransaction(SPI_ETHERNET_SETTINGS);		// begin SPI transaction
 	W5100.writeSnIR(s, SnIR::TIMEOUT);					// clear SnIR TIMEOUT bit
 	do {												// W5500 sets socket status register when command is complete
-		//delayMicroseconds(50);							// delay to give W5x00 time to process command
-		delayMicroseconds(1);							// delay to give W5x00 time to process command
+		delayMicroseconds(50);							// delay to give W5x00 time to process command
+		//delayMicroseconds(1);							// delay to give W5x00 time to process command
 		stat = W5100.readSnSR(s);						// read W5x00 Socket n Status Register
 		IRstat = W5100.readSnIR(s);						// read W5x00 Socket n Interrupt Register
 		if ((IRstat & SnIR::TIMEOUT) == SnIR::TIMEOUT ||// if timeout occurs before command completes...

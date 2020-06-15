@@ -86,19 +86,26 @@ void EthernetClass::begin(uint8_t *mac, IPAddress ip, IPAddress dns, IPAddress g
 void EthernetClass::begin(uint8_t *mac, IPAddress ip, IPAddress dns, IPAddress gateway, IPAddress subnet)
 {
 	if (W5100.init() == 0) return;
+	DEBUG_PRINTLN("INIT COMPLETED");
 	//SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
 	W5100.setMACAddress(mac);
+	DEBUG_PRINTLN("SET MAC");
 #if ARDUINO > 106 || TEENSYDUINO > 121
 	W5100.setIPAddress(ip._address.bytes);
+	DEBUG_PRINTLN("SET IP");
 	W5100.setGatewayIp(gateway._address.bytes);
+	DEBUG_PRINTLN("SET GW");
 	W5100.setSubnetMask(subnet._address.bytes);
+	DEBUG_PRINTLN("SET SUBNET");
 #else
 	W5100.setIPAddress(ip._address);
 	W5100.setGatewayIp(gateway._address);
 	W5100.setSubnetMask(subnet._address);
 #endif
 	//SPI.endTransaction();
+	DEBUG_PRINTLN("SET DNS");
 	_dnsServerAddress = dns;
+	DEBUG_PRINTLN("DONE");
 }
 
 void EthernetClass::init(uint8_t sspin)
