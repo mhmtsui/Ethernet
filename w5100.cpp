@@ -21,8 +21,8 @@
 #elif defined (__PIC32MZXX__)
 	DSPI2 _spi0;
 	#define SPI_BASE _DSPI2_BASE
-	//#define ASYNC_ENA
-	#define INT_ENA
+	#define ASYNC_ENA
+	//#define INT_ENA
 	#ifdef ASYNC_ENA
 	volatile uint8_t __attribute__((coherent)) txBuf_g[2050];
 	volatile uint8_t __attribute__((coherent)) rxBuf_g[2050];
@@ -378,7 +378,7 @@ uint16_t W5100Class::write(uint16_t addr, const uint8_t *buf, uint16_t len)
 			txBuf_g[3] = buf[i];
 			// _cache(((1)|(5<<2)), temp);
 			// _sync();
-			_spi0.asyncTransfertimeout(4, (uint8_t*) txBuf_g, 30);
+			_spi0.asyncTransfertimeout(4, (uint8_t*) txBuf_g, (uint8_t*) rxBuf_g, 30);
 #elif defined(INT_ENA)
 			uint8_t temp[4];
 			temp[0] = 0xF0;
@@ -409,7 +409,7 @@ uint16_t W5100Class::write(uint16_t addr, const uint8_t *buf, uint16_t len)
 		txBuf_g[1] = addr & 0xFF;
 		txBuf_g[2] = ((len >> 8) & 0x7F) | 0x80;
 		txBuf_g[3] = len & 0xFF;
-		_spi0.asyncTransfertimeout(4, (uint8_t*) txBuf_g, 30);
+		_spi0.asyncTransfertimeout(4, (uint8_t*) txBuf_g, (uint8_t*) rxBuf_g, 30);
 #elif defined(INT_ENA)
 		_spi0.intTransfertimeout(4, cmd, 30);
 #else
@@ -422,7 +422,7 @@ uint16_t W5100Class::write(uint16_t addr, const uint8_t *buf, uint16_t len)
 	// 	_sync();
 	// }
 	memcpy((void*) txBuf_g, buf, len);
-	_spi0.asyncTransfertimeout(len, (uint8_t*) txBuf_g, 30);
+	_spi0.asyncTransfertimeout(len, (uint8_t*) txBuf_g, (uint8_t*) rxBuf_g, 30);
 #elif defined(INT_ENA)
 	_spi0.intTransfertimeout(len, (uint8_t*) buf, 30);
 #else
@@ -484,7 +484,7 @@ uint16_t W5100Class::write(uint16_t addr, const uint8_t *buf, uint16_t len)
 			// _cache(((1)|(5<<2)), cmd);
 			// _sync();
 			memcpy((void *) txBuf_g, cmd, len+3);
-			_spi0.asyncTransfertimeout(len+3, (uint8_t*) txBuf_g, 30);
+			_spi0.asyncTransfertimeout(len+3, (uint8_t*) txBuf_g, (uint8_t*) rxBuf_g, 30);
 #elif defined(INT_ENA)
 			_spi0.intTransfertimeout(len+3, cmd, 30);
 #else
@@ -495,7 +495,7 @@ uint16_t W5100Class::write(uint16_t addr, const uint8_t *buf, uint16_t len)
 			// _cache(((1)|(5<<2)), cmd);
 			// _sync();
 			memcpy((void *) txBuf_g, cmd, 3);
-			_spi0.asyncTransfertimeout(3, (uint8_t*) txBuf_g, 30);
+			_spi0.asyncTransfertimeout(3, (uint8_t*) txBuf_g, (uint8_t*) rxBuf_g, 30);
 #elif defined(INT_ENA)
 			_spi0.intTransfertimeout(3, cmd, 30);
 #else
@@ -508,7 +508,7 @@ uint16_t W5100Class::write(uint16_t addr, const uint8_t *buf, uint16_t len)
 			// 	_sync();
 			// }
 			memcpy((void *) txBuf_g, buf, len);
-			_spi0.asyncTransfertimeout(len, (uint8_t*) txBuf_g, 30);
+			_spi0.asyncTransfertimeout(len, (uint8_t*) txBuf_g, (uint8_t*) rxBuf_g, 30);
 #elif defined(INT_ENA)
 			_spi0.intTransfertimeout(len, (uint8_t*) buf, 30);
 #else
@@ -546,12 +546,12 @@ uint16_t W5100Class::read(uint16_t addr, uint8_t *buf, uint16_t len)
 			txBuf_g[3] = 0;
 			// _cache(((1)|(5<<2)), cmd);
 			// _sync();
-			_spi0.asyncTransfertimeout(3, (uint8_t*) txBuf_g, 30); // TODO: why doesn't this work?
-			_spi0.asyncTransfertimeout(1, (uint8_t)0x00, (uint8_t*) &txBuf_g[3], 30);
+			_spi0.asyncTransfertimeout(4, (uint8_t*) txBuf_g, (uint8_t*) rxBuf_g, 30); // TODO: why doesn't this work?
+			//_spi0.asyncTransfertimeout(1, (uint8_t)0x00, (uint8_t*) &txBuf_g[3], 30);
 			//_cache(((1)|(4<<2)), cmd);
 			//_sync();
 			//uint8_t * tmp = (uint8_t*) KVA0_TO_KVA1(cmd);
-			buf[i] = txBuf_g[3];
+			buf[i] = rxBuf_g[3];
 			addr++;
 #elif defined(INT_ENA)
 			cmd[0] = 0x0F;
@@ -595,7 +595,7 @@ uint16_t W5100Class::read(uint16_t addr, uint8_t *buf, uint16_t len)
 		txBuf_g[1] = addr & 0xFF;
 		txBuf_g[2] = (len >> 8) & 0x7F;
 		txBuf_g[3] = len & 0xFF;
-		_spi0.asyncTransfertimeout(4,(uint8_t*)  txBuf_g, 30);		
+		_spi0.asyncTransfertimeout(4,(uint8_t*)  txBuf_g, (uint8_t*) rxBuf_g, 30);		
 #elif defined(INT_ENA)
 		_spi0.intTransfertimeout(4, cmd, 30);
 #else
@@ -662,7 +662,7 @@ uint16_t W5100Class::read(uint16_t addr, uint8_t *buf, uint16_t len)
 		// _cache(((1)|(5<<2)), cmd);
 		// _sync();
 		memcpy((void *) txBuf_g, cmd, 3);
-		_spi0.asyncTransfertimeout(3, (uint8_t*) txBuf_g, 30);
+		_spi0.asyncTransfertimeout(3, (uint8_t*) txBuf_g, (uint8_t*) rxBuf_g, 30);
 #elif defined(INT_ENA)
 		_spi0.intTransfertimeout(3, cmd, 30);
 #else
@@ -730,8 +730,8 @@ bool W5100Class::waitForCmd(SOCKET s, uint8_t SnSR_expected)
 	//SPI.beginTransaction(SPI_ETHERNET_SETTINGS);		// begin SPI transaction
 
 	do {												// W5500 sets socket status register when command is complete
-		delayMicroseconds(50);							// delay to give W5x00 time to process command
-		//delayMicroseconds(1);							// delay to give W5x00 time to process command
+		//delayMicroseconds(50);							// delay to give W5x00 time to process command
+		delayMicroseconds(1);							// delay to give W5x00 time to process command
 		stat = W5100.readSnSR(s);						// read W5x00 Socket n Status Register
 		IRstat = W5100.readSnIR(s);						// read W5x00 Socket n Interrupt Register
 		if ((IRstat & SnIR::TIMEOUT) == SnIR::TIMEOUT ||// if timeout occurs before command completes...
@@ -763,8 +763,8 @@ bool W5100Class::waitForCmd(SOCKET s, uint8_t SnSR_expected1, uint8_t SnSR_expec
 	//SPI.beginTransaction(SPI_ETHERNET_SETTINGS);		// begin SPI transaction
 	W5100.writeSnIR(s, SnIR::TIMEOUT);					// clear SnIR TIMEOUT bit
 	do {												// W5500 sets socket status register when command is complete
-		delayMicroseconds(50);							// delay to give W5x00 time to process command
-		//delayMicroseconds(1);							// delay to give W5x00 time to process command
+		//delayMicroseconds(50);							// delay to give W5x00 time to process command
+		delayMicroseconds(1);							// delay to give W5x00 time to process command
 		stat = W5100.readSnSR(s);						// read W5x00 Socket n Status Register
 		IRstat = W5100.readSnIR(s);						// read W5x00 Socket n Interrupt Register
 		if ((IRstat & SnIR::TIMEOUT) == SnIR::TIMEOUT ||// if timeout occurs before command completes...
