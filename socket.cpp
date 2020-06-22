@@ -522,7 +522,7 @@ uint16_t EthernetClass::socketSend(uint8_t s, const uint8_t * buf, uint16_t len)
 			ret = 0;
 			return ret;
 		}
-		yield();
+		delay(1);//yield();
 	} while (freesize < ret);				// this would be a good place to add a timeout in case peer process crashes without closing socket
 
 	// copy data
@@ -538,7 +538,7 @@ uint16_t EthernetClass::socketSend(uint8_t s, const uint8_t * buf, uint16_t len)
 			return 0;
 		}
 		//SPI.endTransaction();
-		yield();
+		delay(1);//yield();
 		//SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
 	}
 	/* +2008.01 bj */
@@ -606,7 +606,7 @@ bool EthernetClass::socketSendUDP(uint8_t s)
 			return false;
 		}
 		//SPI.endTransaction();
-		yield();
+		delay(1);//yield();
 		//SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
 	}
 
