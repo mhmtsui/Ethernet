@@ -696,7 +696,8 @@ uint16_t W5100Class::read(uint16_t addr, uint8_t *buf, uint16_t len)
 	if (len > 2){
 		DEBUG_PRINT("READ");
 		DEBUG_PRINTLN(len);
-		_spi0.asyncTransfertimeout(len, (uint8_t) 0x00, (uint8_t*) rxBuf_g, 30);
+		memset((void*) rxBuf_g, 0, len);
+		_spi0.asyncTransfertimeout(len, (uint8_t*) rxBuf_g, (uint8_t*) rxBuf_g, 30);
 		memcpy((void *) buf, (void *) rxBuf_g, len);
 	}else{
 		_spi0.transfer(len, buf , buf);
