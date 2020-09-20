@@ -23,15 +23,22 @@
 
 #include <DSPI.h>
 
+#ifdef MQTT_LOG
+#include "../MQTT_app/log.h"
+#define LOG logger
+#else
+#define LOG Serial
+#endif
+
 #define DEBUG
 #ifdef DEBUG
- #define DEBUG_PRINT(x)       Serial.print (x)
- #define DEBUG_PRINTLN(x)     Serial.println (x)
- #define DEBUG_PRINTDEC(x)    Serial.print (x, DEC)
- #define DEBUG_PRINTLNDEC(x)  Serial.println (x, DEC)
- #define DEBUG_PRINTHEX(x)    Serial.print (x, HEX)
- #define DEBUG_PRINTLNHEX(x)  Serial.println (x, HEX)
- #define DEBUG_FLUSH()        Serial.flush()
+ #define DEBUG_PRINT(x)       LOG.print (x)
+ #define DEBUG_PRINTLN(x)     LOG.println (x)
+ #define DEBUG_PRINTDEC(x)    LOG.print (x, DEC)
+ #define DEBUG_PRINTLNDEC(x)  LOG.println (x, DEC)
+ #define DEBUG_PRINTHEX(x)    LOG.print (x, HEX)
+ #define DEBUG_PRINTLNHEX(x)  LOG.println (x, HEX)
+ #define DEBUG_FLUSH()        LOG.flush()
 #else
  #define DEBUG_PRINT(x)
  #define DEBUG_PRINTLN(x) 
