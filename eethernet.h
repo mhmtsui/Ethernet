@@ -23,7 +23,7 @@
 
 #include <DSPI.h>
 
-#ifdef MQTT_LOG
+#ifdef _MQTT_LOG
 #include "../MQTT_app/log.h"
 #define LOG logger
 #else

@@ -513,8 +513,8 @@ uint16_t W5100Class::write(uint16_t addr, const uint8_t *buf, uint16_t len)
 #elif defined(INT_ENA)
 			_spi0.intTransfertimeout(len, (uint8_t*) buf, 30);
 #else
-	DEBUG_PRINT("WRITE");
-	DEBUG_PRINTLN(len);
+	//DEBUG_PRINT("WRITE");
+	//DEBUG_PRINTLN(len);
 	#ifdef SPI_HAS_TRANSFER_BUF
 			//_spi0.transfer(len, (uint8_t*) buf);
 			memcpy((void *) txBuf_g, buf, len);
