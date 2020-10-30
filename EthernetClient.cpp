@@ -176,6 +176,7 @@ void EthernetClient::flush()
 		uint8_t stat = Ethernet.socketStatus(sockindex);
 		if (stat != SnSR::ESTABLISHED && stat != SnSR::CLOSE_WAIT) return;
 		if (Ethernet.socketSendAvailable(sockindex) >= W5100.SSIZE) return;
+		delay(1);
 	}
 }
 
