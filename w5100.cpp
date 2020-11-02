@@ -735,6 +735,7 @@ bool W5100Class::waitForCmd(SOCKET s, uint8_t SnSR_expected)
 	uint8_t IRstat;
 	uint32_t start = micros();
 	uint8_t stat;
+	int cnt=0;
 //	return true;
 
 	W5100Class::numWaitCalls++;
@@ -742,19 +743,22 @@ bool W5100Class::waitForCmd(SOCKET s, uint8_t SnSR_expected)
 	// Now wait for socket status register to have expected value
 	//SPI.beginTransaction(SPI_ETHERNET_SETTINGS);		// begin SPI transaction
 
-	do {												// W5500 sets socket status register when command is complete
-		//delayMicroseconds(50);							// delay to give W5x00 time to process command
-		delayMicroseconds(1);							// delay to give W5x00 time to process command
+	do {		
+		if (++cnt > 500){
+			cnt = 0;
+			delay(1);
+		}else{												// W5500 sets socket status register when command is complete
+			delayMicroseconds(1);						// delay to give W5x00 time to process command
+		}										
+		//delayMicroseconds(1);							// delay to give W5x00 time to process command
 		stat = W5100.readSnSR(s);						// read W5x00 Socket n Status Register
 		IRstat = W5100.readSnIR(s);						// read W5x00 Socket n Interrupt Register
 		if ((IRstat & SnIR::TIMEOUT) == SnIR::TIMEOUT ||// if timeout occurs before command completes...
 			(IRstat & SnIR::DISCON) == SnIR::DISCON) {	//  or client disconnects...
 			//SPI.endTransaction();						//   end SPI transaction and...
-			cumWaitTime+= millis() - start;
+			cumWaitTime+= micros() - start;
 			return false;								//    return fail.
 		}
-/*		if (millis() - start > 5000)
-			return false; */
 	} while (stat != SnSR_expected);					// if the expected result occurs...
 
 	//SPI.endTransaction();								//  end SPI transaction and...
@@ -768,6 +772,7 @@ bool W5100Class::waitForCmd(SOCKET s, uint8_t SnSR_expected1, uint8_t SnSR_expec
 	uint8_t IRstat;
 	uint32_t start = micros();
 	uint8_t stat;
+	int cnt=0;
 //	return true;
 
 	W5100Class::numWaitCalls++;
@@ -776,14 +781,19 @@ bool W5100Class::waitForCmd(SOCKET s, uint8_t SnSR_expected1, uint8_t SnSR_expec
 	//SPI.beginTransaction(SPI_ETHERNET_SETTINGS);		// begin SPI transaction
 	W5100.writeSnIR(s, SnIR::TIMEOUT);					// clear SnIR TIMEOUT bit
 	do {												// W5500 sets socket status register when command is complete
-		//delayMicroseconds(50);							// delay to give W5x00 time to process command
-		delayMicroseconds(1);							// delay to give W5x00 time to process command
+		if (++cnt > 500){
+			cnt = 0;
+			delay(1);
+		}else{												// W5500 sets socket status register when command is complete
+			delayMicroseconds(1);						// delay to give W5x00 time to process command
+		}								// delay to give W5x00 time to process command
+		//delayMicroseconds(1);							// delay to give W5x00 time to process command
 		stat = W5100.readSnSR(s);						// read W5x00 Socket n Status Register
 		IRstat = W5100.readSnIR(s);						// read W5x00 Socket n Interrupt Register
 		if ((IRstat & SnIR::TIMEOUT) == SnIR::TIMEOUT ||// if timeout occurs before command completes...
 			(IRstat & SnIR::DISCON) == SnIR::DISCON) {	//  or client disconnects...
 			//SPI.endTransaction();						//   end SPI transaction and...
-			cumWaitTime+= millis() - start;
+			cumWaitTime+= micros() - start;
 			return false;								//    return fail
 		}
 /*		if (millis() - start > 5000)
