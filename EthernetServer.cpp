@@ -180,6 +180,8 @@ void EthernetServer::statusreport()
 			default: name = "???";
 		}
 		int avail = Ethernet.socketRecvAvailable(i);
+		int sr = W5100.readSnSR(i);
+		int ir = W5100.readSnIR(i);
 		//Serial.printf("  %d: port=%d, status=%s (0x%02X), avail=%d\n",
 		Serial.print("Socket #");
 		Serial.print(i);
@@ -190,7 +192,13 @@ void EthernetServer::statusreport()
 		Serial.print(" (0x");
 		Serial.print(stat, HEX);
 		Serial.print("), avail=");
-		Serial.println(avail);
+		Serial.print(avail);
+		Serial.print("SnSR=");
+		Serial.print(sr, HEX);
+		Serial.print("SnIR=");
+		Serial.print(ir, HEX);
+		Serial.println();
+
 	}
 }
 #endif

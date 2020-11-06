@@ -531,11 +531,16 @@ uint16_t EthernetClass::socketSend(uint8_t s, const uint8_t * buf, uint16_t len)
 	W5100.execCmdSn(s, Sock_SEND);
 
 	/* +2008.01 bj */
+	start = millis();
 	while ( (W5100.readSnIR(s) & SnIR::SEND_OK) != SnIR::SEND_OK ) {
 		/* m2008.01 [bj] : reduce code */
 		if ( W5100.readSnSR(s) == SnSR::CLOSED ) {
 			//SPI.endTransaction();
 			return 0;
+		}
+		if (millis() - start > 1000) {							// check for timeout +rs 17Feb2019 - find a way to use user-configurable _timeout
+			ret = 0;
+			return ret;
 		}
 		//SPI.endTransaction();
 		delay(1);//yield();
@@ -595,7 +600,7 @@ bool EthernetClass::socketSendUDP(uint8_t s)
 {
 	//SPI.beginTransaction(SPI_ETHERNET_SETTINGS);
 	W5100.execCmdSn(s, Sock_SEND);
-
+	uint32_t start = millis();
 	/* +2008.01 bj */
 	while ( (W5100.readSnIR(s) & SnIR::SEND_OK) != SnIR::SEND_OK ) {
 		if (W5100.readSnIR(s) & SnIR::TIMEOUT) {
@@ -603,6 +608,9 @@ bool EthernetClass::socketSendUDP(uint8_t s)
 			W5100.writeSnIR(s, (SnIR::SEND_OK|SnIR::TIMEOUT));
 			//SPI.endTransaction();
 			//Serial.printf("sendUDP timeout\n");
+			return false;
+		}
+		if (millis() - start > 1000) {							// check for timeout +rs 17Feb2019 - find a way to use user-configurable _timeout
 			return false;
 		}
 		//SPI.endTransaction();
