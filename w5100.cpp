@@ -123,8 +123,8 @@ uint8_t W5100Class::init(void)
 	_spi0.beginasync(ss_pin, 6, 7);
 	//_spi0.begin(ss_pin);
 #else
-	_spi0.beginasync(ss_pin, 6, 7);
-	//_spi0.begin(ss_pin);
+	//_spi0.beginasync(ss_pin, 6, 7);
+	_spi0.begin(ss_pin);
 #endif
 	initSS();
 	resetSS();
@@ -516,9 +516,9 @@ uint16_t W5100Class::write(uint16_t addr, const uint8_t *buf, uint16_t len)
 	//DEBUG_PRINT("WRITE");
 	//DEBUG_PRINTLN(len);
 	#ifdef SPI_HAS_TRANSFER_BUF
-			//_spi0.transfer(len, (uint8_t*) buf);
-			memcpy((void *) txBuf_g, buf, len);
-			_spi0.asyncTransfertimeout(len, (uint8_t*) txBuf_g, (uint8_t*) rxBuf_g, 30);
+			_spi0.transfer(len, (uint8_t*) buf);
+			// memcpy((void *) txBuf_g, buf, len);
+			// _spi0.asyncTransfertimeout(len, (uint8_t*) txBuf_g, (uint8_t*) rxBuf_g, 30);
 	#else
 			// TODO: copy 8 bytes at a time to cmd[] and block transfer
 			for (uint16_t i=0; i < len; i++) {
@@ -693,15 +693,15 @@ uint16_t W5100Class::read(uint16_t addr, uint8_t *buf, uint16_t len)
 		// DEBUG_PRINT("READ");
 		// DEBUG_PRINTLN(buf[0]);
 #else
-	if (len > 2){
-		DEBUG_PRINT("READ");
-		DEBUG_PRINTLN(len);
-		memset((void*) rxBuf_g, 0, len);
-		_spi0.asyncTransfertimeout(len, (uint8_t*) rxBuf_g, (uint8_t*) rxBuf_g, 30);
-		memcpy((void *) buf, (void *) rxBuf_g, len);
-	}else{
+	// if (len > 2){
+	// 	DEBUG_PRINT("READ");
+	// 	DEBUG_PRINTLN(len);
+	// 	memset((void*) rxBuf_g, 0, len);
+	// 	_spi0.asyncTransfertimeout(len, (uint8_t*) rxBuf_g, (uint8_t*) rxBuf_g, 30);
+	// 	memcpy((void *) buf, (void *) rxBuf_g, len);
+	// }else{
 		_spi0.transfer(len, buf , buf);
-	}
+	// }
 #endif
 		resetSS();
 	}
