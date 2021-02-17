@@ -122,7 +122,7 @@ uint8_t EthernetClass::socketBegin(uint8_t protocol, uint16_t port)
 	}*/
 makesocket:
 	//Serial.printf("W5000socket %d\n", s);
-	EthernetServer::server_port[s] = 0;
+	server_port[s] = 0;
 	//delayMicroseconds(250); // TODO: is this needed??  -rs 11Feb2019
 	W5100.writeSnMR(s, protocol);
 	W5100.writeSnIR(s, 0xFF);
@@ -209,7 +209,7 @@ closemakesocket:
 	W5100.execCmdSn(s, Sock_CLOSE);
 makesocket:
 	//Serial.printf("W5000socket %d\n", s);
-	EthernetServer::server_port[s] = 0;
+	server_port[s] = 0;
 	delayMicroseconds(250); // TODO: is this needed??
 	W5100.writeSnMR(s, protocol);
 	W5100.writeSnIR(s, 0xFF);
@@ -628,6 +628,10 @@ bool EthernetClass::socketSendUDP(uint8_t s)
 }
 
 void EthernetClass::manageSockets(EthernetServer* server, uint8_t maxListeners, uint8_t doNotDisconnectSocket) {
+	manageSockets(server, 0, maxListeners, doNotDisconnectSocket);
+}
+
+void EthernetClass::manageSockets(EthernetServer* server, uint8_t startidx, uint8_t maxListeners, uint8_t doNotDisconnectSocket) {
 
 	// Sockets in CLOSE_WAIT state have received FIN from peer and are waiting for us to respond.
 	// This function checks each socket and if it finds one in CLOSE_WAIT state with no data waiting to 
@@ -663,39 +667,43 @@ void EthernetClass::manageSockets(EthernetServer* server, uint8_t maxListeners, 
 	//Serial.printf("W5000socket begin, protocol=%d, port=%d\n", protocol, port);
 
 	// initialize the socketAge array to a state that indicates no "ESTABLISHED" sockets are available to disconnect
-	for (s = 0; s < maxindex; s++)
+	for (s = startidx; s < maxindex; s++)
 		socketAge[s] = 0;
 
 	//SPI.beginTransaction(SPI_ETHERNET_SETTINGS);								// begin SPI transaction
 	// look at all the hardware sockets, record and take action based on current states
-	for (s = 0; s < maxindex; s++) {											// for each hardware socket ...
+	for (s = startidx; s < maxindex; s++) {										// for each hardware socket ...
 		status = W5100.readSnSR(s);												//  get socket status...
-		if (status == SnSR::CLOSE_WAIT && socketRecvAvailable(s) == 0) {		//   if CLOSE_WAIT and no data available to read...
- 			W5100.execCmdSn(s, Sock_DISCON);								    //       send DISCON command...
-			EthernetClass::lastSocketUse[s] = millis();							//        record time at which it was sent so we can send CLOSE command if peer doesn't respond...
-			socketsDisconnecting++;												//         and increment the number of sockets that are disconnecting.
-			DEBUG_PRINT("EthernetClass::manageSockets() - DISCON command sent for socket #");
-			DEBUG_PRINTLN(s);
-		} else if (status == SnSR::CLOSED) {									//   else if closed socket...
-			socketsAvailable++;													//    increment available sockets...
-		} else if (status == SnSR::FIN_WAIT || status == SnSR::CLOSING ||		//   else if socket is in the process of closing...
-			status == SnSR::TIME_WAIT || status == SnSR::LAST_ACK) {
-			socketsDisconnecting++;												//    increment the number of sockets that are disconnecting...
-			if (millis() - EthernetClass::lastSocketUse[s] > 250) {				//     if it's been more than 250 milliseconds since disconnect command was sent...
-				W5100.execCmdSn(s, Sock_CLOSE);									//	    send CLOSE command...
-				EthernetClass::lastSocketUse[s] = millis();						//       and record time at which it was sent so we don't do it repeatedly.
-				DEBUG_PRINT("EthernetClass::manageSockets() - CLOSE command sent for socket #");
+		if (status == SnSR::CLOSED){
+			socketsAvailable++;	
+		}else if (server_port[s] == server->port()){
+			if (status == SnSR::CLOSE_WAIT && socketRecvAvailable(s) == 0) {		//   if CLOSE_WAIT and no data available to read...
+				W5100.execCmdSn(s, Sock_DISCON);								    //       send DISCON command...
+				EthernetClass::lastSocketUse[s] = millis();							//        record time at which it was sent so we can send CLOSE command if peer doesn't respond...
+				socketsDisconnecting++;												//         and increment the number of sockets that are disconnecting.
+				DEBUG_PRINT("EthernetClass::manageSockets() - DISCON command sent for socket #");
 				DEBUG_PRINTLN(s);
+			} 
+			else if (status == SnSR::FIN_WAIT || status == SnSR::CLOSING ||		//   else if socket is in the process of closing...
+				status == SnSR::TIME_WAIT || status == SnSR::LAST_ACK) {
+				socketsDisconnecting++;												//    increment the number of sockets that are disconnecting...
+				if (millis() - EthernetClass::lastSocketUse[s] > 250) {				//     if it's been more than 250 milliseconds since disconnect command was sent...
+					W5100.execCmdSn(s, Sock_CLOSE);									//	    send CLOSE command...
+					EthernetClass::lastSocketUse[s] = millis();						//       and record time at which it was sent so we don't do it repeatedly.
+					DEBUG_PRINT("EthernetClass::manageSockets() - CLOSE command sent for socket #");
+					DEBUG_PRINTLN(s);
+				}
+			}
+			else if (status == SnSR::ESTABLISHED && s < doNotDisconnectSocket && 	//   else if socket is connected and caller hasn't requested to keep it that way...
+					socketRecvAvailable(s) == 0) {									//    and socket has no data waiting to be read...
+				established++;														//	    count it...
+				socketAge[s] = millis() - EthernetClass::lastSocketUse[s];			//       and record time since last socket use.
+			}
+			else if (status == SnSR::LISTEN) {										//   else if socket is in LISTEN state...
+				listening++;														//    count it.
 			}
 		}
-		else if (status == SnSR::ESTABLISHED && s < doNotDisconnectSocket && 	//   else if socket is connected and caller hasn't requested to keep it that way...
-				 socketRecvAvailable(s) == 0) {									//    and socket has no data waiting to be read...
-			established++;														//	    count it...
-			socketAge[s] = millis() - EthernetClass::lastSocketUse[s];			//       and record time since last socket use.
-		}
-		else if (status == SnSR::LISTEN) {										//   else if socket is in LISTEN state...
-			listening++;														//    count it.
-		}
+		
 	}
 
 	// begin listening on all CLOSED sockets but one, leaving one for rapid LANclient connection changes and NTP updates
@@ -726,7 +734,7 @@ void EthernetClass::manageSockets(EthernetServer* server, uint8_t maxListeners, 
 
 			oldest = MAX_SOCK_NUM;												//  find the 'oldest' disconnectable socket...
 			maxAge = 0;
-			for (s = 0; s < maxindex; s++) {									//   by scanning the socketAge array populated above...
+			for (s = startidx; s < maxindex; s++) {									//   by scanning the socketAge array populated above...
 				if (socketAge[s] > maxAge) {									//    if current socket's "age" is greater than the max age recorded so far...
 					oldest = s;													//     record the socket number...
 					maxAge = socketAge[s];										//      and make its age the new max age.

@@ -124,6 +124,7 @@ public:
 	static void manageSockets(int8_t minFreeSockets, uint8_t doNotDisconnectSocket); // +rs 03Feb2019
 #else
 	static void manageSockets(EthernetServer* server, uint8_t maxListeners, uint8_t doNotDisconnectSocket); // +rs 16Mar2019
+	static void manageSockets(EthernetServer* server, uint8_t startidx, uint8_t maxListeners, uint8_t doNotDisconnectSocket);
 #endif
 	static unsigned long lastSocketUse[MAX_SOCK_NUM];								 // +rs 03Feb2019 - records last interaction involving each socket to enable detecting sockets unused for longest time period
 
@@ -185,6 +186,8 @@ private:
 	static bool socketSendUDP(uint8_t s);
 	// Initialize the "random" source port number
 	static void socketPortRand(uint16_t n);
+		// TODO: make private when socket allocation moves to EthernetClass
+	static uint16_t server_port[MAX_SOCK_NUM];
 };
 
 extern EthernetClass Ethernet;
@@ -318,9 +321,8 @@ public:
 	using Print::write;
 	using ClientType = EthernetClient;
 	void statusreport();
+	uint16_t port();
 
-	// TODO: make private when socket allocation moves to EthernetClass
-	static uint16_t server_port[MAX_SOCK_NUM];
 };
 
 
