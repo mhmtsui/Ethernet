@@ -123,7 +123,6 @@ uint8_t W5100Class::init(void)
 	_spi0.beginasync(ss_pin, 6, 7);
 	//_spi0.begin(ss_pin);
 #else
-	//_spi0.beginasync(ss_pin, 6, 7);
 	_spi0.begin(ss_pin);
 #endif
 	initSS();
@@ -354,47 +353,34 @@ W5100Linkstatus W5100Class::getLinkStatus()
 uint16_t W5100Class::write(uint16_t addr, const uint8_t *buf, uint16_t len)
 {
 	uint8_t cmd[8];
-#ifdef ASYNC_ENA
-	// uint8_t * ptr;
-	// for(ptr = (uint8_t *) buf; ptr < buf+len; ptr+=16){
-	// 	_cache(((1)|(5<<2)), ptr);
-	// }
-	// uint8_t* ptr1;//uint8_t* ptr2;
-	// for(ptr1=(uint8_t*) buf; ptr1<buf+len;ptr1++){
-	// 	DEBUG_PRINT(*ptr1);
-	// 	DEBUG_PRINT(',');
-	// 	DEBUG_PRINT(*((uint8_t*)(KVA0_TO_KVA1(ptr1))));
-	// }
-	// DEBUG_PRINTLN();	
-#endif
 	if (chip == 51) {
 		for (uint16_t i=0; i<len; i++) {
 			setSS();
-#ifdef ASYNC_ENA
-			//uint8_t temp[4];
-			txBuf_g[0] = 0xF0;
-			txBuf_g[1] = addr>>8;
-			txBuf_g[2] = addr&0xFF;
-			addr++;
-			txBuf_g[3] = buf[i];
-			// _cache(((1)|(5<<2)), temp);
-			// _sync();
-			_spi0.asyncTransfertimeout(4, (uint8_t*) txBuf_g, (uint8_t*) rxBuf_g, 30);
-#elif defined(INT_ENA)
-			uint8_t temp[4];
-			temp[0] = 0xF0;
-			temp[1] = addr>>8;
-			temp[2] = addr&0xFF;
-			addr++;
-			temp[3] = buf[i];
-			_spi0.intTransfertimeout(4, temp, 30);
-#else
+// #ifdef ASYNC_ENA
+// 			//uint8_t temp[4];
+// 			txBuf_g[0] = 0xF0;
+// 			txBuf_g[1] = addr>>8;
+// 			txBuf_g[2] = addr&0xFF;
+// 			addr++;
+// 			txBuf_g[3] = buf[i];
+// 			// _cache(((1)|(5<<2)), temp);
+// 			// _sync();
+// 			_spi0.asyncTransfertimeout(4, (uint8_t*) txBuf_g, (uint8_t*) rxBuf_g, 30);
+// #elif defined(INT_ENA)
+// 			uint8_t temp[4];
+// 			temp[0] = 0xF0;
+// 			temp[1] = addr>>8;
+// 			temp[2] = addr&0xFF;
+// 			addr++;
+// 			temp[3] = buf[i];
+// 			_spi0.intTransfertimeout(4, temp, 30);
+// #else
 			_spi0.transfer(0xF0);
 			_spi0.transfer(addr >> 8);
 			_spi0.transfer(addr & 0xFF);
 			addr++;
 			_spi0.transfer(buf[i]);
-#endif
+//#endif
 			resetSS();
 		}
 	} else if (chip == 52) {
@@ -403,30 +389,30 @@ uint16_t W5100Class::write(uint16_t addr, const uint8_t *buf, uint16_t len)
 		cmd[1] = addr & 0xFF;
 		cmd[2] = ((len >> 8) & 0x7F) | 0x80;
 		cmd[3] = len & 0xFF;
-#ifdef ASYNC_ENA
-		// _cache(((1)|(5<<2)), cmd);
-		// _sync();
-		txBuf_g[0] = addr >> 8;
-		txBuf_g[1] = addr & 0xFF;
-		txBuf_g[2] = ((len >> 8) & 0x7F) | 0x80;
-		txBuf_g[3] = len & 0xFF;
-		_spi0.asyncTransfertimeout(4, (uint8_t*) txBuf_g, (uint8_t*) rxBuf_g, 30);
-#elif defined(INT_ENA)
-		_spi0.intTransfertimeout(4, cmd, 30);
-#else
+// #ifdef ASYNC_ENA
+// 		// _cache(((1)|(5<<2)), cmd);
+// 		// _sync();
+// 		txBuf_g[0] = addr >> 8;
+// 		txBuf_g[1] = addr & 0xFF;
+// 		txBuf_g[2] = ((len >> 8) & 0x7F) | 0x80;
+// 		txBuf_g[3] = len & 0xFF;
+// 		_spi0.asyncTransfertimeout(4, (uint8_t*) txBuf_g, (uint8_t*) rxBuf_g, 30);
+// #elif defined(INT_ENA)
+// 		_spi0.intTransfertimeout(4, cmd, 30);
+// #else
 		_spi0.transfer(4, cmd);
-#endif
-#ifdef ASYNC_ENA
-	// uint8_t * ptr;
-	// for(ptr = (uint8_t *) buf; ptr < buf+len; ptr+=1){
-	// 	_cache(((1)|(5<<2)), ptr);
-	// 	_sync();
-	// }
-	memcpy((void*) txBuf_g, buf, len);
-	_spi0.asyncTransfertimeout(len, (uint8_t*) txBuf_g, (uint8_t*) rxBuf_g, 30);
-#elif defined(INT_ENA)
-	_spi0.intTransfertimeout(len, (uint8_t*) buf, 30);
-#else
+//#endif
+// #ifdef ASYNC_ENA
+// 	// uint8_t * ptr;
+// 	// for(ptr = (uint8_t *) buf; ptr < buf+len; ptr+=1){
+// 	// 	_cache(((1)|(5<<2)), ptr);
+// 	// 	_sync();
+// 	// }
+// 	memcpy((void*) txBuf_g, buf, len);
+// 	_spi0.asyncTransfertimeout(len, (uint8_t*) txBuf_g, (uint8_t*) rxBuf_g, 30);
+// #elif defined(INT_ENA)
+// 	_spi0.intTransfertimeout(len, (uint8_t*) buf, 30);
+// #else
 	#ifdef SPI_HAS_TRANSFER_BUF
 		_spi0.transfer(len, (uint8_t*) buf);
 	#else
@@ -435,7 +421,7 @@ uint16_t W5100Class::write(uint16_t addr, const uint8_t *buf, uint16_t len)
 			_spi0.transfer(buf[i]);
 		}
 	#endif
-#endif
+//#endif
 		resetSS();
 	} else { // chip == 55
 		setSS();
@@ -481,51 +467,54 @@ uint16_t W5100Class::write(uint16_t addr, const uint8_t *buf, uint16_t len)
 			for (uint8_t i=0; i < len; i++) {
 				cmd[i + 3] = buf[i];
 			}
-#ifdef ASYNC_ENA
-			// _cache(((1)|(5<<2)), cmd);
-			// _sync();
-			memcpy((void *) txBuf_g, cmd, len+3);
-			_spi0.asyncTransfertimeout(len+3, (uint8_t*) txBuf_g, (uint8_t*) rxBuf_g, 30);
-#elif defined(INT_ENA)
-			_spi0.intTransfertimeout(len+3, cmd, 30);
-#else
+// #ifdef ASYNC_ENA
+// 			// _cache(((1)|(5<<2)), cmd);
+// 			// _sync();
+// 			memcpy((void *) txBuf_g, cmd, len+3);
+// 			_spi0.asyncTransfertimeout(len+3, (uint8_t*) txBuf_g, (uint8_t*) rxBuf_g, 30);
+// #elif defined(INT_ENA)
+// 			_spi0.intTransfertimeout(len+3, cmd, 30);
+// #else
 			_spi0.transfer(len + 3, cmd);
-#endif
+//#endif
 		} else {
-#ifdef ASYNC_ENA
-			// _cache(((1)|(5<<2)), cmd);
-			// _sync();
-			memcpy((void *) txBuf_g, cmd, 3);
-			_spi0.asyncTransfertimeout(3, (uint8_t*) txBuf_g, (uint8_t*) rxBuf_g, 30);
-#elif defined(INT_ENA)
-			_spi0.intTransfertimeout(3, cmd, 30);
-#else
+// #ifdef ASYNC_ENA
+// 			// _cache(((1)|(5<<2)), cmd);
+// 			// _sync();
+// 			memcpy((void *) txBuf_g, cmd, 3);
+// 			_spi0.asyncTransfertimeout(3, (uint8_t*) txBuf_g, (uint8_t*) rxBuf_g, 30);
+// #elif defined(INT_ENA)
+// 			_spi0.intTransfertimeout(3, cmd, 30);
+// #else
 			_spi0.transfer(3, cmd);
-#endif
-#ifdef ASYNC_ENA
-			// uint8_t * ptr;
-			// for(ptr = (uint8_t *) buf; ptr < buf+len; ptr+=1){
-			// 	_cache(((1)|(5<<2)), ptr);
-			// 	_sync();
-			// }
-			memcpy((void *) txBuf_g, buf, len);
-			_spi0.asyncTransfertimeout(len, (uint8_t*) txBuf_g, (uint8_t*) rxBuf_g, 30);
-#elif defined(INT_ENA)
-			_spi0.intTransfertimeout(len, (uint8_t*) buf, 30);
-#else
+//#endif
+// #ifdef ASYNC_ENA
+// 			// uint8_t * ptr;
+// 			// for(ptr = (uint8_t *) buf; ptr < buf+len; ptr+=1){
+// 			// 	_cache(((1)|(5<<2)), ptr);
+// 			// 	_sync();
+// 			// }
+// 			memcpy((void *) txBuf_g, buf, len);
+// 			_spi0.asyncTransfertimeout(len, (uint8_t*) txBuf_g, (uint8_t*) rxBuf_g, 30);
+// #elif defined(INT_ENA)
+// 			_spi0.intTransfertimeout(len, (uint8_t*) buf, 30);
+// #else
 	//DEBUG_PRINT("WRITE");
 	//DEBUG_PRINTLN(len);
+// #endif
 	#ifdef SPI_HAS_TRANSFER_BUF
+		#ifdef ASYNC_ENA
+			memcpy((void *) txBuf_g, buf, len);
+			_spi0.asyncTransfertimeout(len, (uint8_t*) txBuf_g, (uint8_t*) rxBuf_g, 30);
+		#else
 			_spi0.transfer(len, (uint8_t*) buf);
-			// memcpy((void *) txBuf_g, buf, len);
-			// _spi0.asyncTransfertimeout(len, (uint8_t*) txBuf_g, (uint8_t*) rxBuf_g, 30);
+		#endif
 	#else
 			// TODO: copy 8 bytes at a time to cmd[] and block transfer
 			for (uint16_t i=0; i < len; i++) {
 				_spi0.transfer(buf[i]);
 			}
 	#endif
-#endif
 		}
 		resetSS();
 	}
@@ -535,40 +524,34 @@ uint16_t W5100Class::write(uint16_t addr, const uint8_t *buf, uint16_t len)
 uint16_t W5100Class::read(uint16_t addr, uint8_t *buf, uint16_t len)
 {
 	uint8_t cmd[4];
-#ifdef ASYNC_ENA
-	// uint8_t * ptr;
-	// for(ptr = (uint8_t *) buf; ptr < buf+len; ptr+=16){
-	// 	_cache(((1)|(5<<2)), ptr);
-	// }
-#endif
 	if (chip == 51) {
 		for (uint16_t i=0; i < len; i++) {
 			setSS();
-#ifdef ASYNC_ENA
-			txBuf_g[0] = 0x0F;
-			txBuf_g[1] = addr >> 8;
-			txBuf_g[2] = addr & 0xFF;
-			txBuf_g[3] = 0;
-			// _cache(((1)|(5<<2)), cmd);
-			// _sync();
-			_spi0.asyncTransfertimeout(4, (uint8_t*) txBuf_g, (uint8_t*) rxBuf_g, 30); // TODO: why doesn't this work?
-			//_spi0.asyncTransfertimeout(1, (uint8_t)0x00, (uint8_t*) &txBuf_g[3], 30);
-			//_cache(((1)|(4<<2)), cmd);
-			//_sync();
-			//uint8_t * tmp = (uint8_t*) KVA0_TO_KVA1(cmd);
-			buf[i] = rxBuf_g[3];
-			addr++;
-#elif defined(INT_ENA)
-			cmd[0] = 0x0F;
-			cmd[1] = addr >> 8;
-			cmd[2] = addr & 0xFF;
-			cmd[3] = 0;
-			//_cache(((1)|(5<<2)), cmd);
-			_spi0.intTransfertimeout(4, cmd, cmd, 30); // TODO: why doesn't this work?
-			//_cache(((1)|(4<<2)), cmd);
-			buf[i] = cmd[3];
-			addr++;
-#else
+// #ifdef ASYNC_ENA
+// 			txBuf_g[0] = 0x0F;
+// 			txBuf_g[1] = addr >> 8;
+// 			txBuf_g[2] = addr & 0xFF;
+// 			txBuf_g[3] = 0;
+// 			// _cache(((1)|(5<<2)), cmd);
+// 			// _sync();
+// 			_spi0.asyncTransfertimeout(4, (uint8_t*) txBuf_g, (uint8_t*) rxBuf_g, 30); // TODO: why doesn't this work?
+// 			//_spi0.asyncTransfertimeout(1, (uint8_t)0x00, (uint8_t*) &txBuf_g[3], 30);
+// 			//_cache(((1)|(4<<2)), cmd);
+// 			//_sync();
+// 			//uint8_t * tmp = (uint8_t*) KVA0_TO_KVA1(cmd);
+// 			buf[i] = rxBuf_g[3];
+// 			addr++;
+// #elif defined(INT_ENA)
+// 			cmd[0] = 0x0F;
+// 			cmd[1] = addr >> 8;
+// 			cmd[2] = addr & 0xFF;
+// 			cmd[3] = 0;
+// 			//_cache(((1)|(5<<2)), cmd);
+// 			_spi0.intTransfertimeout(4, cmd, cmd, 30); // TODO: why doesn't this work?
+// 			//_cache(((1)|(4<<2)), cmd);
+// 			buf[i] = cmd[3];
+// 			addr++;
+// #else
 			#if 1
 			_spi0.transfer(0x0F);
 			_spi0.transfer(addr >> 8);
@@ -584,7 +567,7 @@ uint16_t W5100Class::read(uint16_t addr, uint8_t *buf, uint16_t len)
 			buf[i] = cmd[3];
 			addr++;
 			#endif
-#endif
+// #endif
 			resetSS();
 		}
 	} else if (chip == 52) {
@@ -593,35 +576,35 @@ uint16_t W5100Class::read(uint16_t addr, uint8_t *buf, uint16_t len)
 		cmd[1] = addr & 0xFF;
 		cmd[2] = (len >> 8) & 0x7F;
 		cmd[3] = len & 0xFF;
-#ifdef ASYNC_ENA
-		// _cache(((1)|(5<<2)), cmd);
-		// _sync();
-		txBuf_g[0] = addr >> 8;
-		txBuf_g[1] = addr & 0xFF;
-		txBuf_g[2] = (len >> 8) & 0x7F;
-		txBuf_g[3] = len & 0xFF;
-		_spi0.asyncTransfertimeout(4,(uint8_t*)  txBuf_g, (uint8_t*) rxBuf_g, 30);		
-#elif defined(INT_ENA)
-		_spi0.intTransfertimeout(4, cmd, 30);
-#else
+// #ifdef ASYNC_ENA
+// 		// _cache(((1)|(5<<2)), cmd);
+// 		// _sync();
+// 		txBuf_g[0] = addr >> 8;
+// 		txBuf_g[1] = addr & 0xFF;
+// 		txBuf_g[2] = (len >> 8) & 0x7F;
+// 		txBuf_g[3] = len & 0xFF;
+// 		_spi0.asyncTransfertimeout(4,(uint8_t*)  txBuf_g, (uint8_t*) rxBuf_g, 30);		
+// #elif defined(INT_ENA)
+// 		_spi0.intTransfertimeout(4, cmd, 30);
+// #else
 		_spi0.transfer(4, cmd);
-#endif
+// #endif
 		memset(buf, 0, len);
-#ifdef ASYNC_ENA
-		memset((void *) rxBuf_g, 0, len);
-		_spi0.asyncTransfertimeout(len, (uint8_t) 0x00, (uint8_t*)  rxBuf_g, 30);
-		memcpy(buf, (void *)  rxBuf_g, len);
-		// uint8_t * ptr;
-		// for(ptr = (uint8_t *) buf; ptr < buf+len; ptr+=1){
-		// 	_cache(((1)|(4<<2)), ptr);
-		// 	_sync();
-		// }
-		//buf = (uint8_t *) KVA0_TO_KVA1(buf);
-#elif defined(INT_ENA)
-		_spi0.intTransfertimeout(len, (uint8_t) 0x0, buf, 30);
-#else
+// #ifdef ASYNC_ENA
+// 		memset((void *) rxBuf_g, 0, len);
+// 		_spi0.asyncTransfertimeout(len, (uint8_t) 0x00, (uint8_t*)  rxBuf_g, 30);
+// 		memcpy(buf, (void *)  rxBuf_g, len);
+// 		// uint8_t * ptr;
+// 		// for(ptr = (uint8_t *) buf; ptr < buf+len; ptr+=1){
+// 		// 	_cache(((1)|(4<<2)), ptr);
+// 		// 	_sync();
+// 		// }
+// 		//buf = (uint8_t *) KVA0_TO_KVA1(buf);
+// #elif defined(INT_ENA)
+// 		_spi0.intTransfertimeout(len, (uint8_t) 0x0, buf, 30);
+// #else
 		_spi0.transfer(len, buf, buf);
-#endif
+//#endif
 		resetSS();
 	} else { // chip == 55
 		setSS();
@@ -663,46 +646,49 @@ uint16_t W5100Class::read(uint16_t addr, uint8_t *buf, uint16_t len)
 			cmd[2] = ((addr >> 6) & 0xE0) | 0x18; // 2K buffers
 			#endif
 		}
-#ifdef ASYNC_ENA
-		// _cache(((1)|(5<<2)), cmd);
-		// _sync();
-		memcpy((void *) txBuf_g, cmd, 3);
-		_spi0.asyncTransfertimeout(3, (uint8_t*) txBuf_g, (uint8_t*) rxBuf_g, 30);
-#elif defined(INT_ENA)
-		_spi0.intTransfertimeout(3, cmd, 30);
-#else
+// #ifdef ASYNC_ENA
+// 		// _cache(((1)|(5<<2)), cmd);
+// 		// _sync();
+// 		memcpy((void *) txBuf_g, cmd, 3);
+// 		_spi0.asyncTransfertimeout(3, (uint8_t*) txBuf_g, (uint8_t*) rxBuf_g, 30);
+// #elif defined(INT_ENA)
+// 		_spi0.intTransfertimeout(3, cmd, 30);
+// #else
 		_spi0.transfer(3, cmd);
-#endif
+//#endif
 		memset(buf, 0, len);
-#ifdef ASYNC_ENA
-		memset((void*) rxBuf_g, 0, len);
-		_spi0.asyncTransfertimeout(len, (uint8_t) 0x00, (uint8_t*) rxBuf_g, 30);
-		memcpy(buf, (void *) rxBuf_g, len);
-		// uint8_t * ptr;
-		// for(ptr = (uint8_t *) buf; ptr < buf+len; ptr+=1){
-		// 	_cache(((1)|(4<<2)), ptr);
-		// 	_sync();
-		// }
-		// DEBUG_PRINT("READ KVA0");
-		// DEBUG_PRINTLN(buf[0]);
-		// buf = (uint8_t *) KVA0_TO_KVA1(buf);
-		// DEBUG_PRINT("READ KVA1");
-		// DEBUG_PRINTLN(buf[0]);
-#elif defined(INT_ENA)
-		_spi0.intTransfertimeout(len, (uint8_t)0x00, buf, 30);
+// #ifdef ASYNC_ENA
+// 		memset((void*) rxBuf_g, 0, len);
+// 		_spi0.asyncTransfertimeout(len, (uint8_t) 0x00, (uint8_t*) rxBuf_g, 30);
+// 		memcpy(buf, (void *) rxBuf_g, len);
+// 		// uint8_t * ptr;
+// 		// for(ptr = (uint8_t *) buf; ptr < buf+len; ptr+=1){
+// 		// 	_cache(((1)|(4<<2)), ptr);
+// 		// 	_sync();
+// 		// }
+// 		// DEBUG_PRINT("READ KVA0");
+// 		// DEBUG_PRINTLN(buf[0]);
+// 		// buf = (uint8_t *) KVA0_TO_KVA1(buf);
+// 		// DEBUG_PRINT("READ KVA1");
+// 		// DEBUG_PRINTLN(buf[0]);
+// #elif defined(INT_ENA)
+// 		_spi0.intTransfertimeout(len, (uint8_t)0x00, buf, 30);
+// 		// DEBUG_PRINT("READ");
+// 		// DEBUG_PRINTLN(buf[0]);
+// #else
+	#ifdef ASYNC_ENA
+	if (len > 2){
 		// DEBUG_PRINT("READ");
-		// DEBUG_PRINTLN(buf[0]);
-#else
-	// if (len > 2){
-	// 	DEBUG_PRINT("READ");
-	// 	DEBUG_PRINTLN(len);
-	// 	memset((void*) rxBuf_g, 0, len);
-	// 	_spi0.asyncTransfertimeout(len, (uint8_t*) rxBuf_g, (uint8_t*) rxBuf_g, 30);
-	// 	memcpy((void *) buf, (void *) rxBuf_g, len);
-	// }else{
+		// DEBUG_PRINTLN(len);
+		memset((void*) rxBuf_g, 0, len);
+		_spi0.asyncTransfertimeout(len, (uint8_t*) rxBuf_g, (uint8_t*) rxBuf_g, 30);
+		memcpy((void *) buf, (void *) rxBuf_g, len);
+	}else{
+	#endif
 		_spi0.transfer(len, buf , buf);
-	// }
-#endif
+	#ifdef ASYNC_ENA
+	}
+	#endif
 		resetSS();
 	}
 	return len;
